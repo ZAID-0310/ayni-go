@@ -19,8 +19,7 @@ export function useDriverDocuments(usuario) {
     cargarDocumentos();
   }, []);
 
-  const cargarDocumentos = async () => {
-    setCargandoInicial(true);
+    const cargarDocumentos = async () => {
     const { data, error } = await supabase
       .from('documentos_chofer')
       .select('*')
