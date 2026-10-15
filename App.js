@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { supabase } from './lib/supabase';
+import BienvenidaScreen from './src/screens/Bienvenida';
 import LoginScreen from './src/screens/Login';
 import RegisterScreen from './src/screens/Register';
 import HomeScreen from './src/screens/Home';
 import VehicleScreen from './src/screens/Vehicle';
 import DocumentsScreen from './src/screens/Documents';
-import PedirViajeScreen from './src/screens/PedirViaje'
+import PedirViajeScreen from './src/screens/PedirViaje';
 import SalasChoferScreen from './src/screens/SalasChofer';
 
 export default function App() {
-  const [pantalla, setPantalla] = useState('login'); // 'login' | 'registro' | 'home'
+  // 'bienvenida' | 'login' | 'registro' | 'home' | 'vehiculo' | 'documentos'
+  // | 'pedirViaje' | 'salasChofer'
+  const [pantalla, setPantalla] = useState('bienvenida');
+  const [rolElegido, setRolElegido] = useState(null); // 'pasajero' | 'chofer'
   const [perfil, setPerfil] = useState(null);
 
   const manejarLoginExitoso = async (usuario) => {
@@ -29,10 +33,11 @@ export default function App() {
 
   const manejarCerrarSesion = () => {
     setPerfil(null);
-    setPantalla('login');
+    setRolElegido(null);
+    setPantalla('bienvenida');
   };
-  
-    if (pantalla === 'vehiculo') {
+
+  if (pantalla === 'vehiculo') {
     return (
       <VehicleScreen
         usuario={perfil}
@@ -41,8 +46,7 @@ export default function App() {
     );
   }
 
-
-    if (pantalla === 'documentos') {
+  if (pantalla === 'documentos') {
     return (
       <DocumentsScreen
         usuario={perfil}
@@ -50,11 +54,16 @@ export default function App() {
       />
     );
   }
-    if (pantalla === 'salasChofer') {
+
+  if (pantalla === 'salasChofer') {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
-    if (pantalla === 'home') {
+  if (pantalla === 'pedirViaje') {
+    return <PedirViajeScreen onVolver={() => setPantalla('home')} />;
+  }
+
+  if (pantalla === 'home') {
     return (
       <HomeScreen
         perfil={perfil}
@@ -63,7 +72,6 @@ export default function App() {
         onIrADocumentos={() => setPantalla('documentos')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}
-
       />
     );
   }
@@ -71,21 +79,32 @@ export default function App() {
   if (pantalla === 'registro') {
     return (
       <RegisterScreen
+        rol={rolElegido}
         onRegistroExitoso={() => setPantalla('login')}
         onIrALogin={() => setPantalla('login')}
+        onVolver={() => setPantalla('bienvenida')}
       />
     );
   }
 
-  if (pantalla === 'pedirViaje') {
-  return <PedirViajeScreen 
-  onVolver={() => setPantalla('home')} />;
-}
+  if (pantalla === 'login') {
+    return (
+      <LoginScreen
+        rol={rolElegido}
+        onLoginExitoso={manejarLoginExitoso}
+        onIrARegistro={() => setPantalla('registro')}
+        onVolver={() => setPantalla('bienvenida')}
+      />
+    );
+  }
 
+  // Pantalla inicial
   return (
-    <LoginScreen
-      onLoginExitoso={manejarLoginExitoso}
-      onIrARegistro={() => setPantalla('registro')}
+    <BienvenidaScreen
+      onElegirRol={(rol) => {
+        setRolElegido(rol);
+        setPantalla('login');
+      }}
     />
   );
 }
