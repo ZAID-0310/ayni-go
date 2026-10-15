@@ -1,20 +1,21 @@
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  Alert, 
-  Image, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
-  Platform, 
+import React from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Image,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
 import { useLogin } from '../../hooks/useLogin';
 import { styles } from './LoginScreen.styles';
 
-export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
+export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolver }) {
   const {
     email,
     setEmail,
@@ -22,16 +23,18 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
     setPassword,
     loading,
     iniciarSesion
-  } = useLogin({ onLoginExitoso });
+  } = useLogin({ rol, onLoginExitoso });
+
+  const esChofer = rol === 'chofer';
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer} 
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
           {/* Decoración superior */}
@@ -40,15 +43,15 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
           {/* Encabezado y Logo */}
           <View style={styles.headerContainer}>
             <View style={styles.logoCircle}>
-              <Image 
-                source={{ uri: 'https://via.placeholder.com/100' }} 
-                style={styles.logoImage} 
-                resizeMode="contain" 
+              <Image
+                source={require('../../../assets/logo-texto.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
               />
             </View>
-            <Text style={styles.titulo}>AYNIX</Text>
+            <Text style={styles.titulo}>Ayni Go</Text>
             <Text style={styles.subtitulo}>
-              Aplicación rápida de viaje{"\n"}para estudiantes
+              {esChofer ? 'Ingreso de chofer' : 'Ingreso de pasajero'}
             </Text>
           </View>
 
@@ -57,7 +60,7 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
             <Text style={styles.label}>CORREO ELECTRÓNICO</Text>
             <TextInput
               style={styles.input}
-              placeholder="tu.correo@edu.pe / @gmail.com"
+              placeholder={esChofer ? 'tu.correo@gmail.com' : 'tu.correo@edu.pe'}
               placeholderTextColor="#999"
               value={email}
               onChangeText={setEmail}
@@ -75,9 +78,9 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
               secureTextEntry
             />
 
-            <TouchableOpacity 
-              style={styles.btnPrimary} 
-              onPress={iniciarSesion} 
+            <TouchableOpacity
+              style={styles.btnPrimary}
+              onPress={iniciarSesion}
               activeOpacity={0.8}
               disabled={loading}
             >
@@ -86,16 +89,6 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
               ) : (
                 <Text style={styles.btnPrimaryText}>Iniciar sesión</Text>
               )}
-            </TouchableOpacity>
-
-            <View style={styles.dividerContainer}>
-              <View style={styles.line} />
-              <Text style={styles.dividerText}>o continuar con</Text>
-              <View style={styles.line} />
-            </View>
-
-            <TouchableOpacity style={styles.btnDriver}>
-              <Text style={styles.btnDriverText}>Soy Conductor</Text>
             </TouchableOpacity>
           </View>
 
@@ -112,8 +105,8 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={{ marginTop: 15 }}>
-              <Text style={styles.homeLink}>Ir a la página de inicio</Text>
+            <TouchableOpacity style={{ marginTop: 15 }} onPress={onVolver}>
+              <Text style={styles.homeLink}>Cambiar tipo de cuenta</Text>
             </TouchableOpacity>
           </View>
 
@@ -122,7 +115,6 @@ export default function LoginScreen({ onLoginExitoso, onIrARegistro }) {
             <View style={styles.bottomYellow} />
             <View style={styles.bottomOrange} />
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

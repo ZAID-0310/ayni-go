@@ -1,52 +1,46 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
 import { useRegister } from '../../hooks/useRegister';
 import { styles } from './RegisterScreen.styles';
 
-export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
+export default function RegisterScreen({ rol, onRegistroExitoso, onIrALogin, onVolver }) {
   const {
-    nombre,
-    setNombre,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    rol,
-    setRol,
-    otp,
-    setOtp,
+    nombre, setNombre,
+    email, setEmail,
+    password, setPassword,
+    otp, setOtp,
     etapa,
     loading,
     enviarCodigo,
     registrarse,
     reenviarCodigo
-  } = useRegister({ onRegistroExitoso });
+  } = useRegister({ rol, onRegistroExitoso });
+
+  const esChofer = rol === 'chofer';
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer} 
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Decoración superior */}
           <View style={styles.topDecoration} />
 
           {etapa === 'verificar' ? (
-            /* ETAPA DE VERIFICACIÓN DE OTP */
             <View style={{ width: '100%', marginVertical: 'auto' }}>
               <View style={styles.headerContainer}>
                 <Text style={styles.titulo}>Verifica tu correo</Text>
@@ -68,9 +62,9 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
                   maxLength={6}
                 />
 
-                <TouchableOpacity 
-                  style={styles.btnPrimary} 
-                  onPress={registrarse} 
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={registrarse}
                   activeOpacity={0.8}
                   disabled={loading}
                 >
@@ -81,9 +75,9 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  onPress={reenviarCodigo} 
-                  disabled={loading} 
+                <TouchableOpacity
+                  onPress={reenviarCodigo}
+                  disabled={loading}
                   style={{ marginTop: 12 }}
                 >
                   <Text style={{ textAlign: 'center', color: '#2563eb' }}>
@@ -93,11 +87,16 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
               </View>
             </View>
           ) : (
-            /* ETAPA DE FORMULARIO DE REGISTRO */
             <>
               <View style={styles.headerContainer}>
-                <Text style={styles.titulo}>Crea tu cuenta</Text>
-                <Text style={styles.subtitulo}>Únete a la comunidad de AYNIX</Text>
+                <Text style={styles.titulo}>
+                  {esChofer ? 'Registro de chofer' : 'Registro de pasajero'}
+                </Text>
+                <Text style={styles.subtitulo}>
+                  {esChofer
+                    ? 'Maneja con Ayni Go y comparte tu ruta'
+                    : 'Únete a la comunidad de Ayni Go'}
+                </Text>
               </View>
 
               <View style={styles.formContainer}>
@@ -110,10 +109,12 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
                   onChangeText={setNombre}
                 />
 
-                <Text style={styles.label}>CORREO INSTITUCIONAL</Text>
+                <Text style={styles.label}>
+                  {esChofer ? 'CORREO' : 'CORREO INSTITUCIONAL'}
+                </Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="tu.correo@edu.pe"
+                  placeholder={esChofer ? 'tu.correo@gmail.com' : 'tu.correo@edu.pe'}
                   placeholderTextColor="#999"
                   value={email}
                   onChangeText={setEmail}
@@ -131,32 +132,9 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
                   secureTextEntry
                 />
 
-                <Text style={styles.label}>TIPO DE USUARIO</Text>
-                <View style={styles.roleContainer}>
-                  <TouchableOpacity
-                    style={[styles.opcionRol, rol === 'pasajero' && styles.opcionRolSeleccionada]}
-                    onPress={() => setRol('pasajero')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={rol === 'pasajero' ? styles.textoSeleccionado : styles.textoNormal}>
-                      Pasajero
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.opcionRol, rol === 'chofer' && styles.opcionRolSeleccionada]}
-                    onPress={() => setRol('chofer')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={rol === 'chofer' ? styles.textoSeleccionado : styles.textoNormal}>
-                      Chofer
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.btnPrimary} 
-                  onPress={enviarCodigo} 
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={enviarCodigo}
                   activeOpacity={0.8}
                   disabled={loading}
                 >
@@ -175,16 +153,17 @@ export default function RegisterScreen({ onRegistroExitoso, onIrALogin }) {
                     <Text style={styles.loginLink}>Inicia sesión</Text>
                   </TouchableOpacity>
                 </View>
+                <TouchableOpacity onPress={onVolver} style={{ marginTop: 12 }}>
+                  <Text style={styles.loginLink}>Cambiar tipo de cuenta</Text>
+                </TouchableOpacity>
               </View>
             </>
           )}
 
-          {/* Decoración inferior */}
           <View style={styles.bottomDecorationContainer}>
             <View style={styles.bottomYellow} />
             <View style={styles.bottomOrange} />
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
