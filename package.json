@@ -7,6 +7,7 @@
     "@rnmapbox/maps": "^10.3.5",
     "@supabase/supabase-js": "^2.116.0",
     "expo": "~57.0.24",
+    "expo-dev-client": "~57.0.19",
     "expo-document-picker": "~57.0.2",
     "expo-image-picker": "~57.0.19",
     "expo-status-bar": "~57.0.1",

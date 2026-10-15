@@ -25,9 +25,6 @@
       "eas": {
         "projectId": "c89bf649-2c7e-4c79-8cb6-00bdcbfa45c8"
       }
-    },
-    "plugins": [
-  "@rnmapbox/maps"
-]
+    }
   }
 }

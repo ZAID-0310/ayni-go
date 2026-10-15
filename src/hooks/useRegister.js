@@ -2,21 +2,23 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
-export function useRegister({ onRegistroExitoso }) {
+export function useRegister({ rol, onRegistroExitoso }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rol, setRol] = useState(null);
   const [otp, setOtp] = useState('');
-  const [etapa, setEtapa] = useState('formulario'); 
+  const [etapa, setEtapa] = useState('formulario');
   const [loading, setLoading] = useState(false);
 
   const enviarCodigo = async () => {
-    if (!nombre.trim() || !email.trim() || !password || !rol) {
-      Alert.alert('Faltan datos', 'Completa tu nombre, correo, contraseña y elige tu rol.');
+    if (!nombre.trim() || !email.trim() || !password) {
+      Alert.alert('Faltan datos', 'Completa tu nombre, correo y contraseña.');
       return;
     }
-
+    if (!rol) {
+      Alert.alert('Falta el tipo de cuenta', 'Vuelve atrás y elige si eres pasajero o chofer.');
+      return;
+    }
     if (password.length < 6) {
       Alert.alert('Contraseña muy corta', 'Debe tener al menos 6 caracteres.');
       return;
@@ -24,9 +26,12 @@ export function useRegister({ onRegistroExitoso }) {
 
     setLoading(true);
 
+    // El rol viaja en los metadatos: el Auth Hook lo lee y rechaza
+    // el dominio no permitido ANTES de enviar el OTP.
     const { error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
+      options: { data: { rol } },
     });
 
     setLoading(false);
@@ -40,21 +45,20 @@ export function useRegister({ onRegistroExitoso }) {
     setEtapa('verificar');
   };
 
-    const reenviarCodigo = async () => {
-        setLoading(true);
-        const { error } = await supabase.auth.resend({
-            type: 'signup',
-            email: email.trim().toLowerCase(),
-        });
-        setLoading(false);
+  const reenviarCodigo = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+    setLoading(false);
 
-        if (error) {
-            Alert.alert('Error', error.message);
-            return;
-        }
-
-        Alert.alert('Código reenviado', 'Revisa tu correo de nuevo.');
-    };
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+    Alert.alert('Código reenviado', 'Revisa tu correo de nuevo.');
+  };
 
   const registrarse = async () => {
     if (!otp.trim()) {
@@ -76,15 +80,13 @@ export function useRegister({ onRegistroExitoso }) {
       return;
     }
 
-    const dominioCorreo = email.trim().toLowerCase().split('@')[1];
-
+    // Segundo candado: el trigger valida dominio + rol y calcula
+    // email, dominio_email y es_institucional en el servidor.
     const { error: errorPerfil } = await supabase.from('usuarios').insert({
       id: data.user.id,
       nombre: nombre.trim(),
       email: email.trim().toLowerCase(),
-      rol: rol,
-      es_institucional: true,
-      dominio_email: dominioCorreo,
+      rol,
     });
 
     setLoading(false);
@@ -101,18 +103,11 @@ export function useRegister({ onRegistroExitoso }) {
   };
 
   return {
-    nombre,
-    setNombre,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    rol,
-    setRol,
-    otp,
-    setOtp,
-    etapa,
-    setEtapa,
+    nombre, setNombre,
+    email, setEmail,
+    password, setPassword,
+    otp, setOtp,
+    etapa, setEtapa,
     loading,
     enviarCodigo,
     registrarse,
