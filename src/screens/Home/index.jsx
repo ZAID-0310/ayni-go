@@ -4,14 +4,15 @@ import {
   Text, 
   TouchableOpacity, 
   SafeAreaView, 
-  ActivityIndicator 
+  ActivityIndicator,
+  Keyboard
 } from 'react-native';
 import { useHome } from '../../hooks/useHome';
 import { styles } from './HomeScreen.styles';
 
-export default function HomeScreen({ perfil, onCerrarSesion,onIrAVehiculo,onIrADocumentos  }) {
+export default function HomeScreen({ perfil, onCerrarSesion,onIrAVehiculo,onIrADocumentos,onIrAPedirViaje,onIrASalasChofer   }) {
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
-
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -60,6 +61,25 @@ export default function HomeScreen({ perfil, onCerrarSesion,onIrAVehiculo,onIrAD
               <Text style={styles.btnSecondaryText}>Mis documentos</Text>
             </TouchableOpacity>
           )}
+          {perfil?.rol === 'pasajero' && (
+            <TouchableOpacity 
+              style={styles.btnSecondary} 
+              onPress={onIrAPedirViaje}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.btnSecondaryText}>Pedir Viaje</Text>
+            </TouchableOpacity>
+          )}
+                    {perfil?.rol === 'chofer' && (
+            <TouchableOpacity
+              style={styles.btnSecondary}
+              onPress={onIrASalasChofer}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.btnSecondaryText}>Ver solicitudes</Text>
+            </TouchableOpacity>
+          )}
+
 
           <TouchableOpacity 
             style={styles.btnSecondary} 
