@@ -21,71 +21,106 @@ export const styles = StyleSheet.create({
     borderRadius: 65,
     backgroundColor: '#F7C942',
   },
-  card: {
+
+  // Tarjeta de perfil
+  perfilCard: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#E2E2E2',
-    elevation: 3,
+    borderRadius: 28,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
-  titulo: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#1A1A1A',
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#F58220',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
-  infoContainer: {
-    gap: 12,
-    marginBottom: 24,
+  avatarText: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#666666',
-    letterSpacing: 0.5,
-  },
-  value: {
-    fontSize: 14,
+  saludo: {
+    fontSize: 26,
+    fontWeight: '800',
     color: '#1A1A1A',
+    textAlign: 'center',
+  },
+  email: {
+    fontSize: 14,
+    color: '#777777',
+    marginTop: 4,
+  },
+  rolBadge: {
+    backgroundColor: '#FDE9D3',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  rolBadgeText: {
+    color: '#D9690B',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  separador: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#EEEEEE',
+    marginVertical: 24,
+  },
+
+  // Botones
+  acciones: {
+    width: '100%',
+    gap: 12,
+  },
+  btnPrincipal: {
+    backgroundColor: '#F58220',
+    paddingVertical: 16,
+    borderRadius: 30,
+    alignItems: 'center',
+    elevation: 3,
+  },
+  btnPrincipalText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  btnOutline: {
+    borderWidth: 2,
+    borderColor: '#1E1E1E',
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: 'center',
+  },
+  btnOutlineText: {
+    color: '#1E1E1E',
+    fontSize: 16,
     fontWeight: '600',
   },
-  badge: {
-    backgroundColor: '#F58220',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  btnLogout: {
+    marginTop: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'capitalize',
-  },
-  btnSecondary: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 25,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  btnSecondaryText: {
-    color: '#FFFFFF',
+  btnLogoutText: {
+    color: '#999999',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
+
+  // Decoración inferior
   bottomDecorationContainer: {
     position: 'absolute',
     bottom: 0,

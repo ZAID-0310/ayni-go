@@ -167,4 +167,13 @@ export const styles = StyleSheet.create({
     borderRadius: 60,
     backgroundColor: '#F58220',
   },
+  passwordWrapper: {
+  position: 'relative',
+  justifyContent: 'center',
+},
+eyeButton: {
+  position: 'absolute',
+  right: 15,
+  top: 14,
+},
 });
