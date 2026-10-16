@@ -7,7 +7,8 @@ import {
   ActivityIndicator,
   Keyboard,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  Animated
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
@@ -82,6 +83,30 @@ function MapaRuta({ origen, destino, ruta, style }) {
     </Mapbox.MapView>
   );
 }
+function PuntoEstado({ color, pulsar }) {
+  const opacidad = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!pulsar) {
+      opacidad.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacidad, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacidad, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulsar, opacidad]);
+
+  return (
+    <Animated.View
+      style={[styles.puntoEstado, { backgroundColor: color, opacity: opacidad }]}
+    />
+  );
+}
 
 export default function PedirViajeScreen({ onVolver }) {
   const {
@@ -125,68 +150,138 @@ export default function PedirViajeScreen({ onVolver }) {
   }
 
   // ---------- Ya tiene un viaje activo: se muestra su estado ----------
+  // ---------- Ya tiene un viaje activo: se muestra su estado ----------
   if (viaje) {
     const libres = viaje.capacidad - viaje.pasajeros;
+    const buscandoEstado =
+      viaje.estado === 'formando' || viaje.estado === 'cerrada_buscando_chofer';
+    const colorEstado = buscandoEstado ? '#F58220' : '#16A34A';
+    const fondoEstado = buscandoEstado ? '#FDE9D3' : '#DCFCE7';
+    const textoColorEstado = buscandoEstado ? '#D9690B' : '#15803D';
+
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topDecoration} />
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
-            <TouchableOpacity onPress={onVolver} style={styles.volverContenedor}>
-              <Text style={styles.volver}>← Volver</Text>
-            </TouchableOpacity>
+      <View style={styles.viajeContenedor}>
+        {/* Mapa a pantalla completa en la parte de arriba */}
+        {origen && destinoViaje?.lat != null ? (
+          <MapaRuta
+            style={styles.mapaViajeFull}
+            origen={origen}
+            destino={destinoViaje}
+            ruta={ruta}
+          />
+        ) : (
+          <View style={styles.mapaViajeFull} />
+        )}
 
-            <Text style={styles.titulo}>Tu viaje</Text>
+        <TouchableOpacity
+          style={styles.botonVolverFlotante}
+          onPress={onVolver}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.volverTextoFlotante}>← Volver</Text>
+        </TouchableOpacity>
 
-            {origen && destinoViaje?.lat != null ? (
-              <MapaRuta
-                style={styles.mapaViaje}
-                origen={origen}
-                destino={destinoViaje}
-                ruta={ruta}
-              />
-            ) : null}
+        {/* Tarjeta inferior */}
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
 
-            {ruta ? (
-              <Text style={styles.datoSecundario}>
-                📍 {(ruta.distancia_m / 1000).toFixed(1)} km · ⏱️ {Math.round(ruta.duracion_s / 60)} min
+          <ScrollView
+            style={styles.sheetScroll}
+            contentContainerStyle={styles.sheetContenido}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Estado */}
+            <View style={[styles.estadoPildora, { backgroundColor: fondoEstado }]}>
+              <PuntoEstado color={colorEstado} pulsar={buscandoEstado} />
+              <Text style={[styles.estadoPildoraTexto, { color: textoColorEstado }]}>
+                {TEXTO_ESTADO[viaje.estado] ?? viaje.estado}
               </Text>
-            ) : null}
-
-            <View style={styles.estadoBadge}>
-              <Text style={styles.estadoTexto}>{TEXTO_ESTADO[viaje.estado] ?? viaje.estado}</Text>
             </View>
 
-            <Text style={styles.dato}>
-              <Text style={styles.negrita}>Cupos:</Text> {viaje.pasajeros} ocupados, {libres} libres
-            </Text>
-
-            {viaje.mi_destino?.direccion ? (
-              <Text style={styles.dato}>
-                <Text style={styles.negrita}>Tu destino:</Text> {viaje.mi_destino.direccion}
-              </Text>
+            {/* Distancia y tiempo */}
+            {ruta ? (
+              <View style={styles.chipsFila}>
+                <View style={styles.chip}>
+                  <Text style={styles.chipTexto}>
+                    📍 {(ruta.distancia_m / 1000).toFixed(1)} km
+                  </Text>
+                </View>
+                <View style={styles.chip}>
+                  <Text style={styles.chipTexto}>
+                    ⏱️ {Math.round(ruta.duracion_s / 60)} min
+                  </Text>
+                </View>
+              </View>
             ) : null}
 
+            {/* Destino */}
+            {viaje.mi_destino?.direccion ? (
+              <View style={styles.destinoFila}>
+                <View style={styles.destinoIcono}>
+                  <Text style={styles.destinoIconoTexto}>📍</Text>
+                </View>
+                <View style={styles.destinoInfo}>
+                  <Text style={styles.seccionTitulo}>TU DESTINO</Text>
+                  <Text style={styles.destinoTexto} numberOfLines={2}>
+                    {viaje.mi_destino.direccion}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Cupos */}
+            <View style={styles.cuposBloque}>
+              <View style={styles.cuposEncabezado}>
+                <Text style={styles.seccionTitulo}>COMPAÑEROS DE RUTA</Text>
+                <Text style={styles.cuposResumen}>
+                  {viaje.pasajeros} de {viaje.capacidad}
+                </Text>
+              </View>
+              <View style={styles.asientosFila}>
+                {Array.from({ length: viaje.capacidad }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.asiento,
+                      i < viaje.pasajeros && styles.asientoLleno,
+                    ]}
+                  >
+                    <Text style={styles.asientoTexto}>
+                      {i < viaje.pasajeros ? '👤' : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.cuposDetalle}>
+                {libres === 0
+                  ? 'Sala completa'
+                  : `${libres} ${libres === 1 ? 'cupo libre' : 'cupos libres'}`}
+              </Text>
+            </View>
+
+            {/* Chofer */}
             {viaje.chofer ? (
               <View style={styles.tarjeta}>
                 <Text style={styles.tarjetaTitulo}>TU CHOFER ASIGNADO</Text>
                 <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
                 <Text style={styles.datoChoferDetalle}>
-                  🚗 {viaje.chofer.modelo} · <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
+                  🚗 {viaje.chofer.modelo} ·{' '}
+                  <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
                 </Text>
               </View>
             ) : null}
 
             {error ? <Text style={styles.textoError}>{error}</Text> : null}
 
+            {/* Cancelar */}
             {puedeCancelar && !confirmandoCancelar ? (
               <TouchableOpacity
-                style={styles.botonSecundario}
+                style={styles.btnCancelarLink}
                 onPress={pedirCancelar}
                 disabled={cargando}
-                activeOpacity={0.8}
+                activeOpacity={0.6}
               >
-                <Text style={styles.botonSecundarioTexto}>Cancelar viaje</Text>
+                <Text style={styles.btnCancelarLinkTexto}>Cancelar viaje</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -217,13 +312,9 @@ export default function PedirViajeScreen({ onVolver }) {
                 </View>
               </View>
             ) : null}
-          </View>
-        </ScrollView>
-        <View style={styles.bottomDecorationContainer}>
-          <View style={styles.bottomYellow} />
-          <View style={styles.bottomOrange} />
+          </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 

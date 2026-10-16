@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ScrollView,
   ActivityIndicator
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLogin } from '../../hooks/useLogin';
 import { styles } from './LoginScreen.styles';
 
@@ -25,6 +26,7 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
     iniciarSesion
   } = useLogin({ rol, onLoginExitoso });
 
+  const [verPassword, setVerPassword] = useState(false);
   const esChofer = rol === 'chofer';
 
   return (
@@ -69,14 +71,28 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
             />
 
             <Text style={styles.label}>CONTRASEÑA</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="........"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={[styles.input, { paddingRight: 50 }]}
+                placeholder="........"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!verPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setVerPassword(!verPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={verPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color="#999"
+                />
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={styles.btnPrimary}
