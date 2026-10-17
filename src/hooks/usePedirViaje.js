@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback,useRef} from 'react';
 import { supabase } from '../../lib/supabase';
+import { nombreDeLugar } from '../../lib/geocoding';
 
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
@@ -17,6 +18,8 @@ export function usePedirViaje() {
   const [origen, setOrigen] = useState(null);
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false);
+  const reqDireccion = useRef(0);
   // Viaje activo (lo que devuelve mi_viaje_activo) o null si no hay
   const [viaje, setViaje] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -149,6 +152,23 @@ export function usePedirViaje() {
     };
   }, [consulta, origen]);
 
+
+const moverDestino = useCallback(async (lat, lng) => {
+  const id = ++reqDireccion.current;
+  setDestino((actual) => ({ ...actual, lat, lng, lugar: null }));
+  setBuscandoDireccion(true);
+  try {
+    const nombre = await nombreDeLugar(lat, lng);
+    if (id !== reqDireccion.current) return; // el puntero ya se movió
+    setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+  } catch {
+    // sin nombre: el viaje se puede pedir igual
+  } finally {
+    if (id === reqDireccion.current) setBuscandoDireccion(false);
+  }
+}, []);
+
+
 const elegirSugerencia = async (s) => {
   try {
     const url =
@@ -162,6 +182,8 @@ const elegirSugerencia = async (s) => {
     textoElegido.current = s.nombre;
     setConsulta(s.nombre);
     setSugerencias([]);
+    reqDireccion.current++;
+    setBuscandoDireccion(false);
     setDestino((actual) => ({ ...actual, lat, lng, lugar: s.nombre }));
     sesionBusqueda.current = nuevoToken(); // cierra la sesión: la próxima búsqueda es nueva
     return { lat, lng };
@@ -240,5 +262,7 @@ const elegirSugerencia = async (s) => {
     sugerencias,
     buscando,
     elegirSugerencia,
+    moverDestino,
+    buscandoDireccion,
   };
 }

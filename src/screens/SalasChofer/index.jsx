@@ -80,6 +80,8 @@ export default function SalasChoferScreen({ onVolver }) {
     errorAccion,
     cargandoInicial,
     procesando,
+    permisoUbicacion,
+    errorUbicacion,
     aceptarSala,
     rechazarSala,
     aprobarCandidato,
@@ -97,6 +99,12 @@ export default function SalasChoferScreen({ onVolver }) {
   }
 
   const mensajeError = errorAccion ?? errorLista;
+    const avisoUbicacion =
+    permisoUbicacion === 'denegado'
+      ? 'Activa el permiso de ubicación para recibir solicitudes (Ajustes → Apps → Ayni Go → Permisos).'
+      : errorUbicacion
+        ? 'No pudimos obtener tu ubicación. Activa la ubicación del dispositivo para recibir solicitudes.'
+        : null;
 
   // ---------- Con sala: candidatos para sumar ----------
   if (viaje) {
@@ -181,7 +189,7 @@ export default function SalasChoferScreen({ onVolver }) {
           ) : null}
 
           {mensajeError ? <Text style={styles.textoError}>{mensajeError}</Text> : null}
-
+                    {avisoUbicacion ? <Text style={styles.textoError}>{avisoUbicacion}</Text> : null}
           {/* Candidatos */}
           {ventanaAbierta && libres > 0 ? (
             <>
@@ -253,8 +261,9 @@ export default function SalasChoferScreen({ onVolver }) {
         />
 
         {mensajeError ? <Text style={styles.textoError}>{mensajeError}</Text> : null}
+        {avisoUbicacion ? <Text style={styles.textoError}>{avisoUbicacion}</Text> : null}
 
-        {!mensajeError && solicitudes.length === 0 ? (
+        {!mensajeError && !avisoUbicacion && solicitudes.length === 0 ? (
           <View style={styles.vacio}>
             <View style={styles.vacioCirculo}>
               <Text style={styles.vacioEmoji}>🚗</Text>
@@ -263,7 +272,11 @@ export default function SalasChoferScreen({ onVolver }) {
             <View style={styles.buscandoFila}>
               <PuntoEstado color="#F58220" pulsar />
               <Text style={styles.buscandoTexto}>Se actualiza solo</Text>
+          
             </View>
+                        <Text style={styles.buscandoTexto}>
+              Recibes solicitudes cuando estás a menos de 5 km del punto de partida.
+            </Text>
           </View>
         ) : null}
 

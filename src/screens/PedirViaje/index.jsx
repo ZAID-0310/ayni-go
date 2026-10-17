@@ -17,11 +17,19 @@ import styles from './PedirViajeScreen.styles';
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
 const TEXTO_ESTADO = {
-  formando: 'Buscando compañeros de ruta…',
+  formando: 'Buscando chofer…',
   abierta_con_chofer: 'Chofer asignado',
-  cerrada_buscando_chofer: 'Sala completa, buscando chofer…',
   en_curso: 'Viaje en curso',
 };
+
+function Marcador({ icono, estiloPunto }) {
+  return (
+    <View style={{ alignItems: 'center', width: 40 }}>
+      <Text style={{ fontSize: 22, lineHeight: 28 }}>{icono}</Text>
+      <View style={estiloPunto} />
+    </View>
+  );
+}
 
 function MapaRuta({ origen, destino, ruta, style }) {
   const camara = useRef(null);
@@ -69,15 +77,16 @@ function MapaRuta({ origen, destino, ruta, style }) {
         </Mapbox.ShapeSource>
       ) : null}
 
-      <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]}>
-        <View style={styles.marcadorOrigen} />
+      <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
+        <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
       </Mapbox.PointAnnotation>
       {destino ? (
         <Mapbox.PointAnnotation
           id="destinoViaje"
           coordinate={[destino.lng, destino.lat]}
+          anchor={{ x: 0.5, y: 1 }}
         >
-          <View style={styles.marcadorDestino} />
+          <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
         </Mapbox.PointAnnotation>
       ) : null}
     </Mapbox.MapView>
@@ -111,7 +120,6 @@ function PuntoEstado({ color, pulsar }) {
 export default function PedirViajeScreen({ onVolver }) {
   const {
     origen,
-    destino, setDestino,
     viaje,
     cargando,
     cargandoInicial,
@@ -128,6 +136,10 @@ export default function PedirViajeScreen({ onVolver }) {
     sugerencias,
     buscando,
     elegirSugerencia,
+    destino, 
+    setDestino,
+    moverDestino,
+    buscandoDireccion,
   } = usePedirViaje();
 
   const camaraRef = useRef(null);
@@ -149,12 +161,10 @@ export default function PedirViajeScreen({ onVolver }) {
     );
   }
 
-  // ---------- Ya tiene un viaje activo: se muestra su estado ----------
-  // ---------- Ya tiene un viaje activo: se muestra su estado ----------
+   // ---------- Ya tiene un viaje activo: se muestra su estado ----------
   if (viaje) {
     const libres = viaje.capacidad - viaje.pasajeros;
-    const buscandoEstado =
-      viaje.estado === 'formando' || viaje.estado === 'cerrada_buscando_chofer';
+    const buscandoEstado = viaje.estado === 'formando';
     const colorEstado = buscandoEstado ? '#F58220' : '#16A34A';
     const fondoEstado = buscandoEstado ? '#FDE9D3' : '#DCFCE7';
     const textoColorEstado = buscandoEstado ? '#D9690B' : '#15803D';
@@ -281,7 +291,7 @@ export default function PedirViajeScreen({ onVolver }) {
                 disabled={cargando}
                 activeOpacity={0.6}
               >
-                <Text style={styles.btnCancelarLinkTexto}>Cancelar viaje</Text>
+                <Text style={styles.btnCancelarLinkTexto}>Cancelar pedido</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -334,9 +344,9 @@ export default function PedirViajeScreen({ onVolver }) {
     );
   }
 
-  const manejarToque = (evento) => {
+    const manejarToque = (evento) => {
     const [lng, lat] = evento.geometry.coordinates;
-    setDestino((actual) => ({ ...actual, lat, lng }));
+    moverDestino(lat, lng);
     Keyboard.dismiss();
   };
 
@@ -373,16 +383,17 @@ export default function PedirViajeScreen({ onVolver }) {
             animationDuration={0}
           />
 
-          <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]}>
-            <View style={styles.marcadorOrigen} />
+          <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
+            <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
           </Mapbox.PointAnnotation>
 
           {destino ? (
             <Mapbox.PointAnnotation
               id="destino"
               coordinate={[destino.lng, destino.lat]}
+              anchor={{ x: 0.5, y: 1 }}
             >
-              <View style={styles.marcadorDestino} />
+              <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
             </Mapbox.PointAnnotation>
           ) : null}
         </Mapbox.MapView>
@@ -417,11 +428,17 @@ export default function PedirViajeScreen({ onVolver }) {
             <Text style={styles.panelTitulo}>
               {destino ? '📍 Destino elegido' : '🎯 Toca el mapa para elegir tu destino'}
             </Text>
-
+            {destino ? (
+              <Text style={styles.dato} numberOfLines={2}>
+                {buscandoDireccion
+                  ? 'Buscando dirección…'
+                  : (destino.lugar ?? 'Punto elegido en el mapa')}
+              </Text>
+            ) : null}
             {destino ? (
               <TextInput
                 style={styles.input}
-                placeholder="Referencia (opcional): ej. frente al parque"
+                placeholder="Detalle extra (opcional): ej. frente al parque"
                 placeholderTextColor="#888"
                 onChangeText={cambiarReferencia}
               />
@@ -430,11 +447,11 @@ export default function PedirViajeScreen({ onVolver }) {
             {error ? <Text style={styles.textoError}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.boton, (!destino || cargando) && styles.botonDeshabilitado]}
-              onPress={pedirViaje}
-              disabled={!destino || cargando}
-              activeOpacity={0.8}
-            >
+                style={[styles.boton, (!destino || cargando || buscandoDireccion) && styles.botonDeshabilitado]}
+                onPress={pedirViaje}
+                disabled={!destino || cargando || buscandoDireccion}
+                activeOpacity={0.8}
+              >
               {cargando ? (
                 <ActivityIndicator color="#fff" />
               ) : (
