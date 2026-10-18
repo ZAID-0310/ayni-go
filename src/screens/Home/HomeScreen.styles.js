@@ -148,4 +148,18 @@ export const styles = StyleSheet.create({
     borderRadius: 60,
     backgroundColor: '#F58220',
   },
+    tabVacio: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FAF7EE',
+  },
+  tabVacioTitulo: { fontSize: 22, fontWeight: '800', color: '#0F5132' },
+  tabVacioTexto: { fontSize: 14, color: '#777', marginTop: 6 },
+  tabPerfil: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    backgroundColor: '#FAF7EE',
+  },
 });
