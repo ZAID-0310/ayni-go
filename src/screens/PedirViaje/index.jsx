@@ -206,7 +206,8 @@ export default function PedirViajeScreen({
   perfil,
   onIrAVehiculo,
   onIrADocumentos,
-  onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer,
   onCerrarSesion,
 }) {
   const {
@@ -681,6 +682,8 @@ export default function PedirViajeScreen({
         onIrAVehiculo={onIrAVehiculo}
         onIrADocumentos={onIrADocumentos}
         onIrASalasChofer={onIrASalasChofer}
+        onIrAProgramados={onIrAProgramados}
+        onIrAProgramadosChofer={onIrAProgramadosChofer}
         onCerrarSesion={onCerrarSesion}
       />
     </View>

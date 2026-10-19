@@ -18,6 +18,8 @@ export default function HomeScreen({
   onIrADocumentos,
   onIrAPedirViaje,
   onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer,
 }) {
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
   const [tab, setTab] = useState('inicio');
@@ -50,6 +52,9 @@ export default function HomeScreen({
             <TouchableOpacity style={styles.btnPrincipal} onPress={onIrASalasChofer} activeOpacity={0.8}>
               <Text style={styles.btnPrincipalText}>Ver solicitudes</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.btnOutline} onPress={onIrAProgramadosChofer} activeOpacity={0.8}>
+              <Text style={styles.btnOutlineText}>Viajes programados</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.btnOutline} onPress={onIrAVehiculo} activeOpacity={0.8}>
               <Text style={styles.btnOutlineText}>Mi vehículo</Text>
             </TouchableOpacity>
@@ -81,13 +86,29 @@ export default function HomeScreen({
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1 }}>
           <View style={[{ flex: 1 }, tab !== 'inicio' && { display: 'none' }]}>
-            <PedirViajeScreen />
+            <PedirViajeScreen
+              perfil={perfil}
+              onIrAVehiculo={onIrAVehiculo}
+              onIrADocumentos={onIrADocumentos}
+              onIrASalasChofer={onIrASalasChofer}
+              onIrAProgramados={onIrAProgramados}
+              onIrAProgramadosChofer={onIrAProgramadosChofer}
+              onCerrarSesion={cerrarSesion}
+            />
           </View>
 
           {tab === 'viajes' && (
             <View style={styles.tabVacio}>
               <Text style={styles.tabVacioTitulo}>Mis viajes</Text>
-              <Text style={styles.tabVacioTexto}>Próximamente</Text>
+              <View style={{ width: '80%', marginTop: 16 }}>
+                <TouchableOpacity
+                  style={styles.btnPrincipal}
+                  onPress={onIrAProgramados}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnPrincipalText}>Viajes programados</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -108,7 +129,7 @@ export default function HomeScreen({
     );
   }
 
-  // ---------- CHOFER: home de siempre ----------
+  // ---------- CHOFER ----------
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
