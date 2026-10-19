@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+
 import {
   View,
   Text,
@@ -14,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MenuLateral from '../../components/MenuLateral';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
@@ -197,7 +199,16 @@ function PuntoEstado({ color, pulsar }) {
   );
 }
 
-export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
+export default function PedirViajeScreen({
+  onVolver,
+  onMenu,
+  onCampana,
+  perfil,
+  onIrAVehiculo,
+  onIrADocumentos,
+  onIrASalasChofer,
+  onCerrarSesion,
+}) {
   const {
     origen,
     viaje,
@@ -216,7 +227,7 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
     sugerencias,
     buscando,
     elegirSugerencia,
-    destino, 
+    destino,
     setDestino,
     moverDestino,
     buscandoDireccion,
@@ -228,6 +239,7 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
 
   const camaraRef = useRef(null);
   const [mapaListo, setMapaListo] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   useEffect(() => {
     const id = setTimeout(() => setMapaListo(true), 6000);
@@ -281,13 +293,15 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
           <View style={styles.mapaViajeFull} />
         )}
 
-        <TouchableOpacity
-          style={styles.botonVolverFlotante}
-          onPress={onVolver}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.volverTextoFlotante}>← Volver</Text>
-        </TouchableOpacity>
+        {onVolver ? (
+          <TouchableOpacity
+            style={styles.botonVolverFlotante}
+            onPress={onVolver}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.volverTextoFlotante}>← Volver</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Tarjeta inferior */}
         <View style={styles.sheet}>
@@ -480,15 +494,17 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
           <Text style={styles.dato}>
             No se pudo cargar el punto de partida. Revisa config_salas.
           </Text>
-          <TouchableOpacity onPress={onVolver} style={styles.btnSecondarySimple}>
-            <Text style={styles.btnSecondaryTextSimple}>← Volver</Text>
-          </TouchableOpacity>
+          {onVolver ? (
+            <TouchableOpacity onPress={onVolver} style={styles.btnSecondarySimple}>
+              <Text style={styles.btnSecondaryTextSimple}>← Volver</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </SafeAreaView>
     );
   }
 
-    const manejarToque = (evento) => {
+  const manejarToque = (evento) => {
     const [lng, lat] = evento.geometry.coordinates;
     moverDestino(lat, lng);
     Keyboard.dismiss();
@@ -552,7 +568,10 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
           {/* Cabecera + tarjeta de origen / destino */}
           <View style={styles.topOverlay}>
             <View style={[styles.header, { paddingTop: STATUS_BAR + 8 }]}>
-              <TouchableOpacity onPress={onMenu} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity
+                onPress={() => (onMenu ? onMenu() : setMenuAbierto(true))}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <Ionicons name="menu" size={28} color={VERDE} />
               </TouchableOpacity>
 
@@ -652,6 +671,18 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
           <Text style={styles.cargandoMapaTexto}>Te estamos ubicando…</Text>
         </View>
       ) : null}
+
+      {/* Menú lateral (hamburguesa) */}
+      <MenuLateral
+        visible={menuAbierto}
+        onCerrar={() => setMenuAbierto(false)}
+        perfil={perfil}
+        onIrAInicio={() => {}}
+        onIrAVehiculo={onIrAVehiculo}
+        onIrADocumentos={onIrADocumentos}
+        onIrASalasChofer={onIrASalasChofer}
+        onCerrarSesion={onCerrarSesion}
+      />
     </View>
   );
 }
