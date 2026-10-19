@@ -18,6 +18,7 @@ import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
 
+
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
 const VERDE = '#0F5132';
@@ -99,6 +100,78 @@ function MapaRuta({ origen, destino, ruta, style }) {
     </Mapbox.MapView>
   );
 }
+const dinero = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`;
+
+// parada_actual puede venir como número o como objeto: se acepta ambos
+const numeroParada = (p) => (p && typeof p === 'object' ? p.orden : p);
+
+function ResumenViaje({ resumen, onCerrar }) {
+  const lista = resumen.pasajeros ?? resumen.paradas ?? [];
+  const mio = lista[0] ?? null;
+  const esperado = Number(resumen.total_esperado ?? mio?.monto ?? 0);
+  const pagado =
+    Number(resumen.total_cobrado ?? 0) > 0 &&
+    Number(resumen.total_sin_cobrar ?? 0) === 0;
+
+  return (
+    <SafeAreaView style={styles.pantalla}>
+      <View style={styles.tarjetaResumen}>
+        <Text style={styles.tituloResumen}>Viaje finalizado 🎉</Text>
+        <Text style={styles.subtitulo}>Gracias por viajar con Ayni Go.</Text>
+
+        {mio?.direccion ? (
+          <>
+            <Text style={styles.etiqueta}>TU DESTINO</Text>
+            <Text style={styles.destinoResumen} numberOfLines={2}>
+              {mio.direccion}
+            </Text>
+          </>
+        ) : null}
+
+        <Text style={styles.etiqueta}>TU MONTO</Text>
+        <Text style={styles.montoGrande}>{dinero(esperado)}</Text>
+
+        <View
+          style={[
+           styles.estadoPago,
+            { backgroundColor: pagado ? '#DCFCE7' : '#FDE9D3' },
+          ]}
+        >
+          <Text
+            style={[
+             styles.estadoPagoTexto,
+              { color: pagado ? '#15803D' : '#D9690B' },
+            ]}
+          >
+            {pagado ? 'Pago registrado' : 'Pago pendiente'}
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.botonResumen} onPress={onCerrar} activeOpacity={0.8}>
+          <Text style={styles.botonResumenTexto}>Listo</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function AvisoCancelado({ onCerrar }) {
+  return (
+    <SafeAreaView style={styles.pantalla}>
+      <View style={styles.tarjetaResumen}>
+        <Text style={styles.tituloResumen}>El viaje se canceló</Text>
+        <Text style={styles.subtitulo}>
+          Tu viaje ya no está activo. Puedes pedir uno nuevo cuando quieras.
+        </Text>
+        <TouchableOpacity style={styles.botonResumen} onPress={onCerrar} activeOpacity={0.8}>
+          <Text style={styles.botonResumenTexto}>Entendido</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+
 function PuntoEstado({ color, pulsar }) {
   const opacidad = useRef(new Animated.Value(1)).current;
 
@@ -147,6 +220,10 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
     setDestino,
     moverDestino,
     buscandoDireccion,
+    resumen,
+    cerrarResumen,
+    avisoCancelado,
+    cerrarAviso,
   } = usePedirViaje();
 
   const camaraRef = useRef(null);
@@ -168,13 +245,27 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
     );
   }
 
-   // ---------- Ya tiene un viaje activo: se muestra su estado ----------
+     // ---------- Viaje terminado o cancelado ----------
+  if (!viaje && resumen) {
+    return <ResumenViaje resumen={resumen} onCerrar={cerrarResumen} />;
+  }
+  if (!viaje && avisoCancelado) {
+    return <AvisoCancelado onCerrar={cerrarAviso} />;
+  }
+
+  // ---------- Ya tiene un viaje activo: se muestra su estado ----------
   if (viaje) {
     const libres = viaje.capacidad - viaje.pasajeros;
     const buscandoEstado = viaje.estado === 'formando';
     const colorEstado = buscandoEstado ? '#F58220' : '#16A34A';
     const fondoEstado = buscandoEstado ? '#FDE9D3' : '#DCFCE7';
     const textoColorEstado = buscandoEstado ? '#D9690B' : '#15803D';
+
+    const monto = viaje.mi_destino?.monto;
+    const enCurso = viaje.estado === 'en_curso';
+    const miOrden = viaje.mi_destino?.orden;
+    const paradaActual = numeroParada(viaje.parada_actual);
+    const pagoRegistrado = viaje.mi_destino?.estado_pago === 'pagado';
 
     return (
       <View style={styles.viajeContenedor}>
@@ -228,6 +319,52 @@ export default function PedirViajeScreen({ onVolver, onMenu, onCampana }) {
                     ⏱️ {Math.round(ruta.duracion_s / 60)} min
                   </Text>
                 </View>
+              </View>
+            ) : null}
+
+                        {/* Precio, parada y pago */}
+            {monto != null && !buscandoEstado ? (
+              <View style={styles.precioBloque}>
+                <View style={styles.precioFila}>
+                  <View>
+                    <Text style={styles.seccionTitulo}>
+                      {enCurso ? 'TU PRECIO' : 'TU PRECIO ESTIMADO'}
+                    </Text>
+                    <Text style={styles.precioMonto}>{dinero(monto)}</Text>
+                    {!enCurso ? (
+                      <Text style={styles.precioNota}>
+                        Puede bajar si se suman más pasajeros
+                      </Text>
+                    ) : null}
+                  </View>
+                  {enCurso && miOrden != null ? (
+                    <View style={styles.paradaChip}>
+                      <Text style={styles.paradaChipTexto}>Tu parada #{miOrden}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {enCurso && paradaActual != null ? (
+                  <Text style={styles.precioNota}>Parada actual: #{paradaActual}</Text>
+                ) : null}
+
+                {enCurso ? (
+                  <View
+                    style={[
+                     styles.pagoPildora,
+                      { backgroundColor: pagoRegistrado ? '#DCFCE7' : '#FDE9D3' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                       styles.pagoPildoraTexto,
+                        { color: pagoRegistrado ? '#15803D' : '#D9690B' },
+                      ]}
+                    >
+                      {pagoRegistrado ? 'Pago registrado' : 'Pago pendiente'}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 

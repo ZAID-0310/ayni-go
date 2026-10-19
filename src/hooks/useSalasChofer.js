@@ -24,7 +24,7 @@ export function useSalasChofer() {
   const [ahora, setAhora] = useState(Date.now());
   const [permisoUbicacion, setPermisoUbicacion] = useState('pendiente'); // pendiente | concedido | denegado
   const [errorUbicacion, setErrorUbicacion] = useState(null);
-
+  const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
   const refrescar = useCallback(async () => {
     const { data: v, error: e1 } = await supabase.rpc('mi_viaje_activo');
     if (e1) {
@@ -89,7 +89,7 @@ export function useSalasChofer() {
 
         // Solo en desarrollo: punto de partida de prueba si el emulador no da posición
         if (!coords && __DEV__) {
-          coords = { latitude: -12.0464, longitude: -77.0428 };
+          coords = { latitude: -12.1938428, longitude: -76.9744695 };
           console.log('PING usando ubicación de prueba');
         }
         if (!coords) throw new Error('Activa la ubicación del dispositivo');
@@ -176,6 +176,41 @@ export function useSalasChofer() {
 
   const descartarCandidato = (solicitudId) =>
     ejecutar('rechazar_candidato', { p_sala_id: viaje.sala_id, p_solicitud_id: solicitudId });
+  const cargarResumen = async () => {
+    const { data, error } = await supabase.rpc('resumen_viaje');
+    if (error) setErrorAccion(error.message);
+    else setResumen(data);
+  };
+
+  const iniciarViaje = () => ejecutar('iniciar_viaje', { p_sala_id: viaje.sala_id });
+
+  const marcarBajada = async (pasajeroId, pagado) => {
+    setErrorAccion(null);
+    setProcesando(true);
+    const { data, error } = await supabase.rpc('marcar_bajada', {
+      p_sala_id: viaje.sala_id,
+      p_pasajero_id: pasajeroId,
+      p_pagado: pagado,
+    });
+    if (error) setErrorAccion(error.message);
+    else if (data?.finalizada) await cargarResumen(); // bajó el último: viaje terminado
+    await refrescar();
+    setProcesando(false);
+  };
+
+  const finalizarViaje = async () => {
+    setErrorAccion(null);
+    setProcesando(true);
+    const { data, error } = await supabase.rpc('finalizar_viaje', {
+      p_sala_id: viaje.sala_id,
+    });
+    if (error) setErrorAccion(error.message);
+    else setResumen(data);
+    await refrescar();
+    setProcesando(false);
+  };
+
+  const cerrarResumen = () => setResumen(null);
 
   return {
     solicitudes,
@@ -192,6 +227,11 @@ export function useSalasChofer() {
     rechazarSala,
     aprobarCandidato,
     descartarCandidato,
+    iniciarViaje,
+    marcarBajada,
+    finalizarViaje,
+    resumen,
+    cerrarResumen,
     refrescar,
   };
-}
+};
