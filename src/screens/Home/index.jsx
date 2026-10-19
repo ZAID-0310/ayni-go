@@ -15,7 +15,9 @@ export default function HomeScreen({
   onIrAVehiculo,
   onIrADocumentos,
   onIrAPedirViaje,
-  onIrASalasChofer
+  onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer
 }) {
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
 
@@ -57,7 +59,17 @@ export default function HomeScreen({
                 onPress={onIrAPedirViaje}
                 activeOpacity={0.8}
               >
-                <Text style={styles.btnPrincipalText}>Pedir viaje</Text>
+              <Text style={styles.btnPrincipalText}>Pedir viaje</Text>
+              </TouchableOpacity>
+            )}
+
+            {esPasajero && (
+              <TouchableOpacity
+                style={styles.btnOutline}
+                onPress={onIrAProgramados}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.btnOutlineText}>Viajes programados</Text>
               </TouchableOpacity>
             )}
 
@@ -68,7 +80,15 @@ export default function HomeScreen({
                   onPress={onIrASalasChofer}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.btnPrincipalText}>Ver solicitudes</Text>
+                <Text style={styles.btnPrincipalText}>Ver solicitudes</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnOutline}
+                  onPress={onIrAProgramadosChofer}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnOutlineText}>Viajes programados</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

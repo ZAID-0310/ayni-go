@@ -1,0 +1,45 @@
+import { StyleSheet, Platform, StatusBar } from 'react-native';
+export const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+    header: {
+    paddingHorizontal: 20,
+    paddingTop: 12 + (Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0),
+    paddingBottom: 8,
+  },
+  btnVolver: { paddingVertical: 10, paddingRight: 20 },
+  btnVolverText: { fontSize: 16, color: '#F58220', fontWeight: '600' },
+  titulo: { fontSize: 24, fontWeight: '700', color: '#222', marginTop: 4 },
+  scroll: { padding: 20, paddingBottom: 40 },
+  cargando: { marginTop: 24 },
+  seccion: { fontSize: 16, fontWeight: '700', color: '#222', marginTop: 18 },
+  vacio: { color: '#777', marginTop: 10, fontSize: 14 },
+  textoError: { color: '#C62828', marginTop: 10, fontSize: 13 },
+
+  card: { backgroundColor: '#F7F7F7', borderRadius: 14, padding: 16, marginTop: 12 },
+  hora: { fontSize: 15, fontWeight: '700', color: '#222' },
+  direccion: { fontSize: 14, color: '#444', marginTop: 6 },
+  sub: { fontSize: 13, color: '#666', marginTop: 4 },
+
+  acciones: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  btnPrincipal: {
+    backgroundColor: '#F58220',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    marginTop: 6,
+    alignItems: 'center',
+  },
+  btnPrincipalText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  btnOutline: {
+    borderWidth: 1.5,
+    borderColor: '#F58220',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    marginTop: 6,
+    alignItems: 'center',
+  },
+  btnOutlineText: { color: '#F58220', fontWeight: '700', fontSize: 15 },
+});

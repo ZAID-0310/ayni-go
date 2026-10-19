@@ -8,6 +8,10 @@ import VehicleScreen from './src/screens/Vehicle';
 import DocumentsScreen from './src/screens/Documents';
 import PedirViajeScreen from './src/screens/PedirViaje';
 import SalasChoferScreen from './src/screens/SalasChofer';
+import ProgramadosScreen from './src/screens/Programados';
+import ProgramadoNuevoScreen from './src/screens/ProgramadoNuevo';
+import ProgramadosChoferScreen from './src/screens/ProgramadosChofer';
+
 
 export default function App() {
   // 'bienvenida' | 'login' | 'registro' | 'home' | 'vehiculo' | 'documentos'
@@ -59,8 +63,36 @@ export default function App() {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
-  if (pantalla === 'pedirViaje') {
+    if (pantalla === 'pedirViaje') {
     return <PedirViajeScreen onVolver={() => setPantalla('home')} />;
+  }
+
+  if (pantalla === 'programados') {
+    return (
+      <ProgramadosScreen
+        onVolver={() => setPantalla('home')}
+                onIrAlViaje={() => setPantalla('pedirViaje')}
+        onNuevo={() => setPantalla('programadoNuevo')}
+      />
+    );
+  }
+
+  if (pantalla === 'programadosChofer') {
+    return (
+      <ProgramadosChoferScreen
+        onVolver={() => setPantalla('home')}
+        onIrAlViaje={() => setPantalla('salasChofer')}
+      />
+    );
+  }
+
+  if (pantalla === 'programadoNuevo') {
+    return (
+      <ProgramadoNuevoScreen
+        onVolver={() => setPantalla('programados')}
+        onGuardado={() => setPantalla('programados')}
+      />
+    );
   }
 
   if (pantalla === 'home') {
@@ -72,6 +104,8 @@ export default function App() {
         onIrADocumentos={() => setPantalla('documentos')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}
+        onIrAProgramados={() => setPantalla('programados')}
+        onIrAProgramadosChofer={() => setPantalla('programadosChofer')}
       />
     );
   }
