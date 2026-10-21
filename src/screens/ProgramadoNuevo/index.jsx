@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';import {
   ScrollView,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useElegirDestino } from '../../hooks/useElegirDestino';
 import { useProgramados, formatearHoraInput, parseHora } from '../../hooks/useProgramados';
 import { styles } from './ProgramadoNuevoScreen.styles';
@@ -42,6 +43,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
 
   const { guardar, trabajando } = useProgramados();
 
+    const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
   const [etiqueta, setEtiqueta] = useState('');
   const [horaTxt, setHoraTxt] = useState('');
@@ -167,7 +169,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
       </View>
 
       {/* Panel inferior */}
-        <View style={[styles.panel, { bottom: tecladoAlto }]}>
+                <View style={[styles.panel, { bottom: tecladoAlto, paddingBottom: 18 + (tecladoAlto ? 0 : insets.bottom) }]}>
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.panelTitulo}>
             {destino ? '📍 Destino elegido' : '🎯 Toca el mapa para elegir el destino'}

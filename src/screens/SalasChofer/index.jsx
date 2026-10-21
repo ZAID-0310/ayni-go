@@ -10,6 +10,7 @@ import {
   Linking,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import styles, { colors } from './SalasChoferScreen.styles';
 
@@ -184,6 +185,7 @@ function MapaChofer({ origen, ruta, paradas, actual }) {
 }
 
 export default function SalasChoferScreen({ onVolver }) {
+  const insets = useSafeAreaInsets();
   const {
     solicitudes,
     viaje,
@@ -236,7 +238,7 @@ export default function SalasChoferScreen({ onVolver }) {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.contenido}
+                    contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           <Cabecera onVolver={cerrarYVolver} titulo="Viaje finalizado" />
@@ -310,7 +312,7 @@ export default function SalasChoferScreen({ onVolver }) {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.contenido}
+                    contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           <Cabecera titulo="Tu viaje" />
@@ -568,7 +570,7 @@ export default function SalasChoferScreen({ onVolver }) {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.contenido}
+                  contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <Cabecera

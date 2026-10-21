@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
@@ -243,6 +244,7 @@ export default function PedirViajeScreen({
     cerrarAviso,
   } = usePedirViaje();
 
+  const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
   const [mapaListo, setMapaListo] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -314,7 +316,7 @@ export default function PedirViajeScreen({
 
           <ScrollView
             style={styles.sheetScroll}
-            contentContainerStyle={styles.sheetContenido}
+                        contentContainerStyle={[styles.sheetContenido, { paddingBottom: 28 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
             {/* Estado */}
@@ -629,7 +631,7 @@ export default function PedirViajeScreen({
           </View>
 
           {/* Parte de abajo: destino elegido + botón */}
-          <View style={styles.panelInferior}>
+                    <View style={[styles.panelInferior, { paddingBottom: 16 + insets.bottom }]}>
             {destino || error ? (
               <View style={styles.destinoCard}>
                 {destino ? (
