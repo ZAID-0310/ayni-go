@@ -4,8 +4,7 @@ import { nombreDeLugar } from '../../lib/geocoding';
 
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
-const INTERVALO_MS = 5000;
-
+const INTERVALO_MS = 2000;
 // Identificador de la sesión de búsqueda (agrupa suggest + retrieve)
 const nuevoToken = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {

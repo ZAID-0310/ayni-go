@@ -37,7 +37,7 @@ export default function HomeScreen({
   onIrASalasChofer,
   onIrAProgramadosChofer,
   onIrAProgramados,
- // onIrAProgramadosChofer,
+  onIrAHistorial,
 }) {
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
   const [tab, setTab] = useState('inicio');
@@ -129,6 +129,13 @@ export default function HomeScreen({
                 >
                   <Text style={styles.btnPrincipalText}>Viajes programados</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { marginTop: 10 }]}
+                  onPress={onIrAHistorial}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnOutlineText}>Historial de viajes</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -182,12 +189,21 @@ export default function HomeScreen({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => proximamente('Notificaciones')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="notifications-outline" size={26} color={VERDE} />
-          </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={onIrAHistorial}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ marginRight: 16 }}
+            >
+              <Ionicons name="time-outline" size={26} color={VERDE} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => proximamente('Notificaciones')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="notifications-outline" size={26} color={VERDE} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Contenido: lista de solicitudes */}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Appearance } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Appearance, View, StatusBar } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
 import LoginScreen from './src/screens/Login';
@@ -13,6 +13,7 @@ import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
 import ProgramadoNuevoScreen from './src/screens/ProgramadoNuevo';
 import ProgramadosChoferScreen from './src/screens/ProgramadosChofer';
+import HistorialScreen from './src/screens/Historial';
 
 // Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
 Appearance.setColorScheme('light');
@@ -21,8 +22,21 @@ Appearance.setColorScheme('light');
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AppContenido />
+      <Marco>
+        <AppContenido />
+      </Marco>
     </SafeAreaProvider>
+  );
+}
+
+// Deja libre el espacio de la barra de navegación del sistema en todas las pantallas
+function Marco({ children }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, paddingBottom: insets.bottom, backgroundColor: '#FAF7EE' }}>
+      <StatusBar barStyle="dark-content" />
+      {children}
+    </View>
   );
 }
 
@@ -99,6 +113,10 @@ function AppContenido() {
     );
   }
 
+    if (pantalla === 'historial') {
+    return <HistorialScreen onVolver={() => setPantalla('home')} />;
+  }
+
   if (pantalla === 'programadoNuevo') {
     return (
       <ProgramadoNuevoScreen
@@ -119,6 +137,7 @@ function AppContenido() {
         onIrASalasChofer={() => setPantalla('salasChofer')}
         onIrAProgramados={() => setPantalla('programados')}
         onIrAProgramadosChofer={() => setPantalla('programadosChofer')}
+        onIrAHistorial={() => setPantalla('historial')}
       />
     );
   }
