@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Appearance } from 'react-native';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
 import LoginScreen from './src/screens/Login';
@@ -11,6 +12,9 @@ import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
 import ProgramadoNuevoScreen from './src/screens/ProgramadoNuevo';
 import ProgramadosChoferScreen from './src/screens/ProgramadosChofer';
+
+// Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
+Appearance.setColorScheme('light');
 
 
 export default function App() {
