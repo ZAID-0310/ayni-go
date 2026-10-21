@@ -3,17 +3,22 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo/vector-icons": "15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@rnmapbox/maps": "^10.3.5",
     "@supabase/supabase-js": "^2.116.0",
-    "expo": "~57.0.24",
-    "expo-dev-client": "~57.0.19",
-    "expo-document-picker": "~57.0.2",
-    "expo-image-picker": "~57.0.19",
+    "expo": "~57.0.30",
+    "expo-dev-client": "~57.0.20",
+    "expo-document-picker": "~57.0.3",
+    "expo-image-picker": "~57.0.20",
+    "expo-location": "~57.0.21",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-url-polyfill": "^4.0.0"
+  },
+  "overrides": {
+    "expo-font": "57.0.4"
   },
   "scripts": {
     "start": "expo start",

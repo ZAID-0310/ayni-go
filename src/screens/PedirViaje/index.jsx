@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+
 import {
   View,
   Text,
@@ -7,20 +8,38 @@ import {
   ActivityIndicator,
   Keyboard,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  Animated,
+  Image,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import MenuLateral from '../../components/MenuLateral';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
 
+
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
+const VERDE = '#0F5132';
+const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+
 const TEXTO_ESTADO = {
-  formando: 'Buscando compañeros de ruta…',
+  formando: 'Buscando chofer…',
   abierta_con_chofer: 'Chofer asignado',
-  cerrada_buscando_chofer: 'Sala completa, buscando chofer…',
   en_curso: 'Viaje en curso',
 };
+
+function Marcador({ icono, estiloPunto }) {
+  return (
+    <View style={{ alignItems: 'center', width: 40 }}>
+      <Text style={{ fontSize: 22, lineHeight: 28 }}>{icono}</Text>
+      <View style={estiloPunto} />
+    </View>
+  );
+}
 
 function MapaRuta({ origen, destino, ruta, style }) {
   const camara = useRef(null);
@@ -68,25 +87,136 @@ function MapaRuta({ origen, destino, ruta, style }) {
         </Mapbox.ShapeSource>
       ) : null}
 
-      <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]}>
-        <View style={styles.marcadorOrigen} />
+      <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
+        <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
       </Mapbox.PointAnnotation>
       {destino ? (
         <Mapbox.PointAnnotation
           id="destinoViaje"
           coordinate={[destino.lng, destino.lat]}
+          anchor={{ x: 0.5, y: 1 }}
         >
-          <View style={styles.marcadorDestino} />
+          <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
         </Mapbox.PointAnnotation>
       ) : null}
     </Mapbox.MapView>
   );
 }
+const dinero = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`;
 
-export default function PedirViajeScreen({ onVolver }) {
+// parada_actual puede venir como número o como objeto: se acepta ambos
+const numeroParada = (p) => (p && typeof p === 'object' ? p.orden : p);
+
+function ResumenViaje({ resumen, onCerrar }) {
+  const lista = resumen.pasajeros ?? resumen.paradas ?? [];
+  const mio = lista[0] ?? null;
+  const esperado = Number(resumen.total_esperado ?? mio?.monto ?? 0);
+  const pagado =
+    Number(resumen.total_cobrado ?? 0) > 0 &&
+    Number(resumen.total_sin_cobrar ?? 0) === 0;
+
+  return (
+    <SafeAreaView style={styles.pantalla}>
+      <View style={styles.tarjetaResumen}>
+                <Text style={styles.tituloResumen}>
+          {resumen.parcial
+            ? (pagado ? 'Bajaste y pagaste ✅' : 'Bajaste del viaje')
+            : 'Viaje finalizado 🎉'}
+        </Text>
+        <Text style={styles.subtitulo}>Gracias por viajar con Ayni Go.</Text>
+
+        {mio?.direccion ? (
+          <>
+            <Text style={styles.etiqueta}>TU DESTINO</Text>
+            <Text style={styles.destinoResumen} numberOfLines={2}>
+              {mio.direccion}
+            </Text>
+          </>
+        ) : null}
+
+        <Text style={styles.etiqueta}>TU MONTO</Text>
+        <Text style={styles.montoGrande}>{dinero(esperado)}</Text>
+
+        <View
+          style={[
+           styles.estadoPago,
+            { backgroundColor: pagado ? '#DCFCE7' : '#FDE9D3' },
+          ]}
+        >
+          <Text
+            style={[
+             styles.estadoPagoTexto,
+              { color: pagado ? '#15803D' : '#D9690B' },
+            ]}
+          >
+            {pagado ? 'Pago registrado' : 'Pago pendiente'}
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.botonResumen} onPress={onCerrar} activeOpacity={0.8}>
+          <Text style={styles.botonResumenTexto}>Listo</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function AvisoCancelado({ onCerrar }) {
+  return (
+    <SafeAreaView style={styles.pantalla}>
+      <View style={styles.tarjetaResumen}>
+        <Text style={styles.tituloResumen}>El viaje se canceló</Text>
+        <Text style={styles.subtitulo}>
+          Tu viaje ya no está activo. Puedes pedir uno nuevo cuando quieras.
+        </Text>
+        <TouchableOpacity style={styles.botonResumen} onPress={onCerrar} activeOpacity={0.8}>
+          <Text style={styles.botonResumenTexto}>Entendido</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+
+function PuntoEstado({ color, pulsar }) {
+  const opacidad = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!pulsar) {
+      opacidad.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacidad, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacidad, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulsar, opacidad]);
+
+  return (
+    <Animated.View
+      style={[styles.puntoEstado, { backgroundColor: color, opacity: opacidad }]}
+    />
+  );
+}
+
+export default function PedirViajeScreen({
+  onVolver,
+  onMenu,
+  onCampana,
+  perfil,
+  onIrAVehiculo,
+  onIrADocumentos,
+  onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer,
+  onCerrarSesion,
+}) {
   const {
     origen,
-    destino, setDestino,
     viaje,
     cargando,
     cargandoInicial,
@@ -103,10 +233,19 @@ export default function PedirViajeScreen({ onVolver }) {
     sugerencias,
     buscando,
     elegirSugerencia,
+    destino,
+    setDestino,
+    moverDestino,
+    buscandoDireccion,
+    resumen,
+    cerrarResumen,
+    avisoCancelado,
+    cerrarAviso,
   } = usePedirViaje();
 
   const camaraRef = useRef(null);
   const [mapaListo, setMapaListo] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   useEffect(() => {
     const id = setTimeout(() => setMapaListo(true), 6000);
@@ -124,69 +263,199 @@ export default function PedirViajeScreen({ onVolver }) {
     );
   }
 
+     // ---------- Viaje terminado o cancelado ----------
+    if (resumen) {
+    return <ResumenViaje resumen={resumen} onCerrar={cerrarResumen} />;
+  }
+  if (!viaje && avisoCancelado) {
+    return <AvisoCancelado onCerrar={cerrarAviso} />;
+  }
+
   // ---------- Ya tiene un viaje activo: se muestra su estado ----------
   if (viaje) {
     const libres = viaje.capacidad - viaje.pasajeros;
+    const buscandoEstado = viaje.estado === 'formando';
+    const colorEstado = buscandoEstado ? '#F58220' : '#16A34A';
+    const fondoEstado = buscandoEstado ? '#FDE9D3' : '#DCFCE7';
+    const textoColorEstado = buscandoEstado ? '#D9690B' : '#15803D';
+
+    const monto = viaje.mi_destino?.monto;
+    const enCurso = viaje.estado === 'en_curso';
+    const miOrden = viaje.mi_destino?.orden;
+    const paradaActual = numeroParada(viaje.parada_actual);
+    const pagoRegistrado = viaje.mi_destino?.estado_pago === 'pagado';
+
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topDecoration} />
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
-            <TouchableOpacity onPress={onVolver} style={styles.volverContenedor}>
-              <Text style={styles.volver}>← Volver</Text>
-            </TouchableOpacity>
+      <View style={styles.viajeContenedor}>
+        {/* Mapa a pantalla completa en la parte de arriba */}
+        {origen && destinoViaje?.lat != null ? (
+          <MapaRuta
+            style={styles.mapaViajeFull}
+            origen={origen}
+            destino={destinoViaje}
+            ruta={ruta}
+          />
+        ) : (
+          <View style={styles.mapaViajeFull} />
+        )}
 
-            <Text style={styles.titulo}>Tu viaje</Text>
+        {onVolver ? (
+          <TouchableOpacity
+            style={styles.botonVolverFlotante}
+            onPress={onVolver}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.volverTextoFlotante}>← Volver</Text>
+          </TouchableOpacity>
+        ) : null}
 
-            {origen && destinoViaje?.lat != null ? (
-              <MapaRuta
-                style={styles.mapaViaje}
-                origen={origen}
-                destino={destinoViaje}
-                ruta={ruta}
-              />
-            ) : null}
+        {/* Tarjeta inferior */}
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
 
-            {ruta ? (
-              <Text style={styles.datoSecundario}>
-                📍 {(ruta.distancia_m / 1000).toFixed(1)} km · ⏱️ {Math.round(ruta.duracion_s / 60)} min
+          <ScrollView
+            style={styles.sheetScroll}
+            contentContainerStyle={styles.sheetContenido}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Estado */}
+            <View style={[styles.estadoPildora, { backgroundColor: fondoEstado }]}>
+              <PuntoEstado color={colorEstado} pulsar={buscandoEstado} />
+              <Text style={[styles.estadoPildoraTexto, { color: textoColorEstado }]}>
+                {TEXTO_ESTADO[viaje.estado] ?? viaje.estado}
               </Text>
-            ) : null}
-
-            <View style={styles.estadoBadge}>
-              <Text style={styles.estadoTexto}>{TEXTO_ESTADO[viaje.estado] ?? viaje.estado}</Text>
             </View>
 
-            <Text style={styles.dato}>
-              <Text style={styles.negrita}>Cupos:</Text> {viaje.pasajeros} ocupados, {libres} libres
-            </Text>
-
-            {viaje.mi_destino?.direccion ? (
-              <Text style={styles.dato}>
-                <Text style={styles.negrita}>Tu destino:</Text> {viaje.mi_destino.direccion}
-              </Text>
+            {/* Distancia y tiempo */}
+            {ruta ? (
+              <View style={styles.chipsFila}>
+                <View style={styles.chip}>
+                  <Text style={styles.chipTexto}>
+                    📍 {(ruta.distancia_m / 1000).toFixed(1)} km
+                  </Text>
+                </View>
+                <View style={styles.chip}>
+                  <Text style={styles.chipTexto}>
+                    ⏱️ {Math.round(ruta.duracion_s / 60)} min
+                  </Text>
+                </View>
+              </View>
             ) : null}
 
+                        {/* Precio, parada y pago */}
+            {monto != null && !buscandoEstado ? (
+              <View style={styles.precioBloque}>
+                <View style={styles.precioFila}>
+                  <View>
+                    <Text style={styles.seccionTitulo}>
+                      {enCurso ? 'TU PRECIO' : 'TU PRECIO ESTIMADO'}
+                    </Text>
+                    <Text style={styles.precioMonto}>{dinero(monto)}</Text>
+                    {!enCurso ? (
+                      <Text style={styles.precioNota}>
+                        Puede bajar si se suman más pasajeros
+                      </Text>
+                    ) : null}
+                  </View>
+                  {enCurso && miOrden != null ? (
+                    <View style={styles.paradaChip}>
+                      <Text style={styles.paradaChipTexto}>Tu parada #{miOrden}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {enCurso && paradaActual != null ? (
+                  <Text style={styles.precioNota}>Parada actual: #{paradaActual}</Text>
+                ) : null}
+
+                {enCurso ? (
+                  <View
+                    style={[
+                     styles.pagoPildora,
+                      { backgroundColor: pagoRegistrado ? '#DCFCE7' : '#FDE9D3' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                       styles.pagoPildoraTexto,
+                        { color: pagoRegistrado ? '#15803D' : '#D9690B' },
+                      ]}
+                    >
+                      {pagoRegistrado ? 'Pago registrado' : 'Pago pendiente'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Destino */}
+            {viaje.mi_destino?.direccion ? (
+              <View style={styles.destinoFila}>
+                <View style={styles.destinoIcono}>
+                  <Text style={styles.destinoIconoTexto}>📍</Text>
+                </View>
+                <View style={styles.destinoInfo}>
+                  <Text style={styles.seccionTitulo}>TU DESTINO</Text>
+                  <Text style={styles.destinoTexto} numberOfLines={2}>
+                    {viaje.mi_destino.direccion}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Cupos */}
+            <View style={styles.cuposBloque}>
+              <View style={styles.cuposEncabezado}>
+                <Text style={styles.seccionTitulo}>COMPAÑEROS DE RUTA</Text>
+                <Text style={styles.cuposResumen}>
+                  {viaje.pasajeros} de {viaje.capacidad}
+                </Text>
+              </View>
+              <View style={styles.asientosFila}>
+                {Array.from({ length: viaje.capacidad }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.asiento,
+                      i < viaje.pasajeros && styles.asientoLleno,
+                    ]}
+                  >
+                    <Text style={styles.asientoTexto}>
+                      {i < viaje.pasajeros ? '👤' : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.cuposDetalle}>
+                {libres === 0
+                  ? 'Sala completa'
+                  : `${libres} ${libres === 1 ? 'cupo libre' : 'cupos libres'}`}
+              </Text>
+            </View>
+
+            {/* Chofer */}
             {viaje.chofer ? (
               <View style={styles.tarjeta}>
                 <Text style={styles.tarjetaTitulo}>TU CHOFER ASIGNADO</Text>
                 <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
                 <Text style={styles.datoChoferDetalle}>
-                  🚗 {viaje.chofer.modelo} · <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
+                  🚗 {viaje.chofer.modelo} ·{' '}
+                  <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
                 </Text>
               </View>
             ) : null}
 
             {error ? <Text style={styles.textoError}>{error}</Text> : null}
 
+            {/* Cancelar */}
             {puedeCancelar && !confirmandoCancelar ? (
               <TouchableOpacity
-                style={styles.botonSecundario}
+                style={styles.btnCancelarLink}
                 onPress={pedirCancelar}
                 disabled={cargando}
-                activeOpacity={0.8}
+                activeOpacity={0.6}
               >
-                <Text style={styles.botonSecundarioTexto}>Cancelar viaje</Text>
+                <Text style={styles.btnCancelarLinkTexto}>Cancelar pedido</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -217,13 +486,9 @@ export default function PedirViajeScreen({ onVolver }) {
                 </View>
               </View>
             ) : null}
-          </View>
-        </ScrollView>
-        <View style={styles.bottomDecorationContainer}>
-          <View style={styles.bottomYellow} />
-          <View style={styles.bottomOrange} />
+          </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -235,9 +500,11 @@ export default function PedirViajeScreen({ onVolver }) {
           <Text style={styles.dato}>
             No se pudo cargar el punto de partida. Revisa config_salas.
           </Text>
-          <TouchableOpacity onPress={onVolver} style={styles.btnSecondarySimple}>
-            <Text style={styles.btnSecondaryTextSimple}>← Volver</Text>
-          </TouchableOpacity>
+          {onVolver ? (
+            <TouchableOpacity onPress={onVolver} style={styles.btnSecondarySimple}>
+              <Text style={styles.btnSecondaryTextSimple}>← Volver</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </SafeAreaView>
     );
@@ -245,7 +512,7 @@ export default function PedirViajeScreen({ onVolver }) {
 
   const manejarToque = (evento) => {
     const [lng, lat] = evento.geometry.coordinates;
-    setDestino((actual) => ({ ...actual, lat, lng }));
+    moverDestino(lat, lng);
     Keyboard.dismiss();
   };
 
@@ -272,7 +539,11 @@ export default function PedirViajeScreen({ onVolver }) {
         style={[styles.mapaContenedor, { opacity: mapaListo ? 1 : 0 }]}
         pointerEvents={mapaListo ? 'auto' : 'none'}
       >
-        <Mapbox.MapView style={styles.mapa} onPress={manejarToque} onDidFinishRenderingMapFully={() => setMapaListo(true)}>
+        <Mapbox.MapView
+          style={styles.mapa}
+          onPress={manejarToque}
+          onDidFinishRenderingMapFully={() => setMapaListo(true)}
+        >
           <Mapbox.Camera
             ref={camaraRef}
             defaultSettings={{
@@ -282,72 +553,118 @@ export default function PedirViajeScreen({ onVolver }) {
             animationDuration={0}
           />
 
-          <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]}>
-            <View style={styles.marcadorOrigen} />
+          <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
+            <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
           </Mapbox.PointAnnotation>
 
           {destino ? (
             <Mapbox.PointAnnotation
               id="destino"
               coordinate={[destino.lng, destino.lat]}
+              anchor={{ x: 0.5, y: 1 }}
             >
-              <View style={styles.marcadorDestino} />
+              <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
             </Mapbox.PointAnnotation>
           ) : null}
         </Mapbox.MapView>
       </View>
 
-      {/* Buscador y panel: solo cuando el mapa ya está listo */}
       {mapaListo ? (
         <>
-          <View style={styles.buscador}>
-            <TextInput
-              style={styles.buscadorInput}
-              placeholder="Busca tu destino: calle, lugar, distrito…"
-              placeholderTextColor="#888"
-              value={consulta}
-              onChangeText={setConsulta}
-            />
-            {buscando ? <ActivityIndicator style={styles.buscadorCargando} color="#1E1E1E" /> : null}
-            {sugerencias && sugerencias.map((s) => (
+          {/* Cabecera + tarjeta de origen / destino */}
+          <View style={styles.topOverlay}>
+            <View style={[styles.header, { paddingTop: STATUS_BAR + 8 }]}>
               <TouchableOpacity
-                key={s.id}
-                style={styles.sugerencia}
-                onPress={() => elegir(s)}
-                activeOpacity={0.7}
+                onPress={() => (onMenu ? onMenu() : setMenuAbierto(true))}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.sugerenciaNombre}>{s.nombre}</Text>
-                <Text style={styles.sugerenciaDetalle}>{s.detalle}</Text>
+                <Ionicons name="menu" size={28} color={VERDE} />
               </TouchableOpacity>
-            ))}
+
+              <Image
+                source={require('../../../assets/logo-texto.png')}
+                style={styles.logoHeader}
+                resizeMode="contain"
+              />
+
+              <TouchableOpacity onPress={onCampana} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="notifications-outline" size={26} color={VERDE} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.rutaCard}>
+              <View style={styles.rutaFila}>
+                <View style={styles.puntoOrigen} />
+                <Text style={styles.rutaTexto} numberOfLines={1}>
+                  Punto de recogida
+                </Text>
+              </View>
+
+              <View style={styles.rutaSeparador} />
+
+              <View style={styles.rutaFila}>
+                <View style={styles.puntoDestino} />
+                <TextInput
+                  style={styles.rutaInput}
+                  placeholder="¿A dónde vamos?"
+                  placeholderTextColor="#888"
+                  value={consulta}
+                  onChangeText={setConsulta}
+                />
+                {buscando ? <ActivityIndicator color={VERDE} /> : null}
+              </View>
+
+              {sugerencias && sugerencias.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.sugerenciaItem}
+                  onPress={() => elegir(s)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.sugerenciaNombre}>{s.nombre}</Text>
+                  <Text style={styles.sugerenciaDetalle}>{s.detalle}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
+          {/* Parte de abajo: destino elegido + botón */}
           <View style={styles.panelInferior}>
-            <Text style={styles.panelTitulo}>
-              {destino ? '📍 Destino elegido' : '🎯 Toca el mapa para elegir tu destino'}
-            </Text>
-
-            {destino ? (
-              <TextInput
-                style={styles.input}
-                placeholder="Referencia (opcional): ej. frente al parque"
-                placeholderTextColor="#888"
-                onChangeText={cambiarReferencia}
-              />
+            {destino || error ? (
+              <View style={styles.destinoCard}>
+                {destino ? (
+                  <>
+                    <Text style={styles.panelTitulo}>📍 Destino elegido</Text>
+                    <Text style={styles.dato} numberOfLines={2}>
+                      {buscandoDireccion
+                        ? 'Buscando dirección…'
+                        : (destino.lugar ?? 'Punto elegido en el mapa')}
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Detalle extra (opcional): ej. frente al parque"
+                      placeholderTextColor="#888"
+                      onChangeText={cambiarReferencia}
+                    />
+                  </>
+                ) : null}
+                {error ? <Text style={styles.textoError}>{error}</Text> : null}
+              </View>
             ) : null}
 
-            {error ? <Text style={styles.textoError}>{error}</Text> : null}
-
             <TouchableOpacity
-              style={[styles.boton, (!destino || cargando) && styles.botonDeshabilitado]}
+              style={[styles.boton, (!destino || cargando || buscandoDireccion) && styles.botonDeshabilitado]}
               onPress={pedirViaje}
-              disabled={!destino || cargando}
+              disabled={!destino || cargando || buscandoDireccion}
               activeOpacity={0.8}
             >
               {cargando ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.botonTexto}>Pedir viaje</Text>
+                <>
+                  <Ionicons name="car-outline" size={22} color="#fff" style={styles.botonIcono} />
+                  <Text style={styles.botonTexto}>Solicitar taxi</Text>
+                </>
               )}
             </TouchableOpacity>
           </View>
@@ -356,14 +673,24 @@ export default function PedirViajeScreen({ onVolver }) {
 
       {!mapaListo ? (
         <View style={styles.cargandoMapa}>
-          <ActivityIndicator size="large" color="#1E1E1E" />
+          <ActivityIndicator size="large" color={VERDE} />
           <Text style={styles.cargandoMapaTexto}>Te estamos ubicando…</Text>
         </View>
       ) : null}
 
-      <TouchableOpacity style={styles.botonVolverFlotante} onPress={onVolver} activeOpacity={0.8}>
-        <Text style={styles.volverTextoFlotante}>← Volver</Text>
-      </TouchableOpacity>
+      {/* Menú lateral (hamburguesa) */}
+      <MenuLateral
+        visible={menuAbierto}
+        onCerrar={() => setMenuAbierto(false)}
+        perfil={perfil}
+        onIrAInicio={() => {}}
+        onIrAVehiculo={onIrAVehiculo}
+        onIrADocumentos={onIrADocumentos}
+        onIrASalasChofer={onIrASalasChofer}
+        onIrAProgramados={onIrAProgramados}
+        onIrAProgramadosChofer={onIrAProgramadosChofer}
+        onCerrarSesion={onCerrarSesion}
+      />
     </View>
   );
 }
