@@ -33,6 +33,8 @@ export default function MenuLateral({
   onIrAVehiculo,
   onIrADocumentos,
   onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer,
   onCerrarSesion,
 }) {
   const x = useRef(new Animated.Value(-ANCHO)).current;
@@ -59,6 +61,7 @@ export default function MenuLateral({
   // Opciones que ya funcionan llevan accion; las demas muestran "Función en desarrollo"
   const items = esChofer
     ? [
+        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
         { label: 'Ver solicitudes', icono: 'list-outline', accion: onIrASalasChofer },
         { label: 'Mi vehículo', icono: 'car-outline', accion: onIrAVehiculo },
@@ -75,6 +78,7 @@ export default function MenuLateral({
     : [
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
         { label: 'Mis viajes', icono: 'car-sport-outline' },
+        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramados },
         { label: 'Historial de viajes', icono: 'time-outline' },
         { label: 'Seguridad', icono: 'shield-checkmark-outline' },
         { label: 'Ayuda y soporte', icono: 'headset-outline' },
