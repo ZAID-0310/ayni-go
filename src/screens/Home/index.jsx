@@ -49,6 +49,7 @@ export default function HomeScreen({
   const rol = perfil?.rol || '';
   const rolTexto = rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : 'Sin rol';
   const esPasajero = rol === 'pasajero';
+  const esChofer = rol === 'chofer';
 
   const proximamente = (titulo) => Alert.alert(titulo, 'Función en desarrollo');
 
