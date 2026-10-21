@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Appearance } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
 import LoginScreen from './src/screens/Login';
@@ -18,6 +19,14 @@ Appearance.setColorScheme('light');
 
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContenido />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContenido() {
   // 'bienvenida' | 'login' | 'registro' | 'home' | 'vehiculo' | 'documentos'
   // | 'pedirViaje' | 'salasChofer'
   const [pantalla, setPantalla] = useState('bienvenida');
