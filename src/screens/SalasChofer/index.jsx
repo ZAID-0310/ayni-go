@@ -8,11 +8,10 @@ import {
   SafeAreaView,
   Animated,
   Linking,
-  StyleSheet,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
-import styles from './SalasChoferScreen.styles';
+import styles, { colors } from './SalasChoferScreen.styles';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
@@ -33,57 +32,9 @@ const TEXTO_PAGO = {
   sin_pagar: 'No pagó',
 };
 
-// Estilos propios de esta tanda (no dependen del archivo .styles.js)
-const x = StyleSheet.create({
-  mapa: { height: 230, borderRadius: 16, overflow: 'hidden' },
-  marca: {
-    width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#fff', backgroundColor: '#1E1E1E',
-  },
-  marcaActual: { backgroundColor: '#F58220' },
-  marcaBajo: { backgroundColor: '#9CA3AF' },
-  marcaTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  precioGrande: { fontSize: 28, fontWeight: '800', color: '#1E1E1E', marginTop: 4 },
-  fila: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnNaranja: { backgroundColor: '#F58220' },
-  btnVerde: { backgroundColor: '#16A34A' },
-  btnRojo: { backgroundColor: '#DC2626' },
-  btnGris: { backgroundColor: '#E5E7EB' },
-  btnOscuro: { backgroundColor: '#1E1E1E' },
-  btnTexto: { color: '#fff', fontWeight: '700', fontSize: 14, textAlign: 'center' },
-  btnTextoOscuro: { color: '#1E1E1E', fontWeight: '700', fontSize: 14 },
-  paradaCard: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  paradaCardActual: { backgroundColor: '#FFF7ED', borderRadius: 12, paddingHorizontal: 8 },
-  paradaTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  paradaTextos: { flex: 1 },
-  paradaDir: { fontSize: 14, fontWeight: '700', color: '#1E1E1E' },
-  paradaSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  paradaMonto: { fontSize: 15, fontWeight: '800', color: '#1E1E1E' },
-  etiqueta: { fontSize: 12, fontWeight: '700', marginTop: 2 },
-  resumenFila: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  resumenLabel: { fontSize: 14, color: '#374151' },
-  resumenValor: { fontSize: 14, fontWeight: '700', color: '#1E1E1E' },
-});
-
-function Decoraciones() {
-  return (
-    <>
-      <View style={styles.topDecoration} />
-      <View style={styles.bottomDecorationContainer}>
-        <View style={styles.bottomYellow} />
-        <View style={styles.bottomOrange} />
-      </View>
-    </>
-  );
-}
-
-function Cabecera({ onVolver, titulo, subtitulo }) {
+function Cabecera({ titulo, subtitulo }) {
   return (
     <View style={styles.cabecera}>
-      <TouchableOpacity style={styles.btnVolver} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={styles.btnVolverTexto}>← Volver</Text>
-      </TouchableOpacity>
       <Text style={styles.titulo}>{titulo}</Text>
       {subtitulo ? <Text style={styles.subtituloCabecera}>{subtitulo}</Text> : null}
     </View>
@@ -150,7 +101,7 @@ function MapaChofer({ origen, ruta, paradas, actual }) {
   if (!origen) return null;
 
   return (
-    <View style={x.mapa}>
+    <View style={styles.mapa}>
       <Mapbox.MapView style={{ flex: 1 }}>
         <Mapbox.Camera
           ref={camara}
@@ -161,36 +112,47 @@ function MapaChofer({ origen, ruta, paradas, actual }) {
             id="rutaChofer"
             shape={{ type: 'Feature', geometry: linea, properties: {} }}
           >
+            {/* Borde blanco para que la ruta resalte sobre las calles */}
+            <Mapbox.LineLayer
+              id="rutaChoferBorde"
+              style={{ lineColor: '#FFFFFF', lineWidth: 9, lineCap: 'round', lineJoin: 'round' }}
+            />
             <Mapbox.LineLayer
               id="rutaChoferLinea"
-              style={{ lineColor: '#F58220', lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+              aboveLayerID="rutaChoferBorde"
+              style={{ lineColor: colors.verde, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
             />
           </Mapbox.ShapeSource>
         ) : null}
 
         <Mapbox.PointAnnotation id="origenChofer" coordinate={[origen.lng, origen.lat]}>
-          <View style={x.marca}>
-            <Text style={x.marcaTexto}>🚏</Text>
+          <View style={[styles.marca, styles.marcaOrigen]}>
+            <Text style={styles.marcaTexto}>🚏</Text>
           </View>
         </Mapbox.PointAnnotation>
 
-        {paradas.map((p) => (
-          <Mapbox.PointAnnotation
-            key={`${p.pasajero_id}-${p.bajo}-${actual?.pasajero_id === p.pasajero_id}`}
-            id={`parada-${p.pasajero_id}`}
-            coordinate={[p.lng, p.lat]}
-          >
-            <View
-              style={[
-                x.marca,
-                actual?.pasajero_id === p.pasajero_id && x.marcaActual,
-                p.bajo && x.marcaBajo,
-              ]}
+        {paradas.map((p) => {
+          const esActual = actual?.pasajero_id === p.pasajero_id;
+          return (
+            <Mapbox.PointAnnotation
+              key={`${p.pasajero_id}-${p.bajo}-${esActual}`}
+              id={`parada-${p.pasajero_id}`}
+              coordinate={[p.lng, p.lat]}
             >
-              <Text style={x.marcaTexto}>{p.orden}</Text>
-            </View>
-          </Mapbox.PointAnnotation>
-        ))}
+              <View
+                style={[
+                  styles.marca,
+                  esActual && styles.marcaActual,
+                  p.bajo && styles.marcaBajo,
+                ]}
+              >
+                <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
+                  {p.orden}
+                </Text>
+              </View>
+            </Mapbox.PointAnnotation>
+          );
+        })}
       </Mapbox.MapView>
     </View>
   );
@@ -223,7 +185,7 @@ export default function SalasChoferScreen({ onVolver }) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centrado}>
-          <ActivityIndicator size="large" color="#F58220" />
+          <ActivityIndicator size="large" color={colors.verde} />
         </View>
       </SafeAreaView>
     );
@@ -242,7 +204,6 @@ export default function SalasChoferScreen({ onVolver }) {
     const lista = resumen.pasajeros ?? [];
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Decoraciones />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contenido}
@@ -250,46 +211,50 @@ export default function SalasChoferScreen({ onVolver }) {
         >
           <Cabecera onVolver={cerrarResumen} titulo="Viaje finalizado" />
           <View style={styles.card}>
-            <Text style={styles.seccionTitulo}>RESUMEN DE COBRO</Text>
-            <View style={x.resumenFila}>
-              <Text style={x.resumenLabel}>Total esperado</Text>
-              <Text style={x.resumenValor}>{soles(resumen.total_esperado)}</Text>
+            <Text style={styles.seccionTitulo}>Resumen de cobro</Text>
+            <View style={styles.resumenFila}>
+              <Text style={styles.resumenLabel}>Total esperado</Text>
+              <Text style={styles.resumenValor}>{soles(resumen.total_esperado)}</Text>
             </View>
-            <View style={x.resumenFila}>
-              <Text style={x.resumenLabel}>Cobrado</Text>
-              <Text style={[x.resumenValor, { color: '#16A34A' }]}>{soles(resumen.total_cobrado)}</Text>
+            <View style={styles.resumenFila}>
+              <Text style={styles.resumenLabel}>Cobrado</Text>
+              <Text style={[styles.resumenValor, styles.resumenOk]}>{soles(resumen.total_cobrado)}</Text>
             </View>
-            <View style={x.resumenFila}>
-              <Text style={x.resumenLabel}>Sin cobrar</Text>
-              <Text style={[x.resumenValor, { color: '#DC2626' }]}>{soles(resumen.total_sin_cobrar)}</Text>
+            <View style={styles.resumenFila}>
+              <Text style={styles.resumenLabel}>Sin cobrar</Text>
+              <Text style={[styles.resumenValor, styles.resumenMal]}>{soles(resumen.total_sin_cobrar)}</Text>
             </View>
           </View>
 
           <Text style={styles.subtitulo}>Pasajeros</Text>
           <View style={styles.card}>
             {lista.map((p, i) => (
-              <View key={i} style={x.paradaCard}>
-                <View style={x.paradaTop}>
-                  <View style={x.paradaTextos}>
-                    <Text style={x.paradaDir}>{p.direccion || 'Sin referencia'}</Text>
-                    <Text style={x.paradaSub}>{p.nombre}</Text>
+              <View key={i} style={styles.paradaCard}>
+                <View style={styles.paradaTop}>
+                  <View style={styles.paradaTextos}>
+                    <Text style={styles.paradaDir}>{p.direccion || 'Sin referencia'}</Text>
+                    <Text style={styles.paradaSub}>{p.nombre}</Text>
                     <Text
                       style={[
-                        x.etiqueta,
-                        { color: p.estado_pago === 'pagado' ? '#16A34A' : '#DC2626' },
+                        styles.etiqueta,
+                        p.estado_pago === 'pagado' ? styles.etiquetaOk : styles.etiquetaMal,
                       ]}
                     >
                       {TEXTO_PAGO[p.estado_pago] ?? p.estado_pago}
                     </Text>
                   </View>
-                  <Text style={x.paradaMonto}>{soles(p.monto)}</Text>
+                  <Text style={styles.paradaMonto}>{soles(p.monto)}</Text>
                 </View>
               </View>
             ))}
           </View>
 
-          <TouchableOpacity style={[x.btn, x.btnNaranja, { marginTop: 14 }]} onPress={cerrarResumen} activeOpacity={0.8}>
-            <Text style={x.btnTexto}>Listo</Text>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimario, { flex: 0, marginTop: 14 }]}
+            onPress={cerrarResumen}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnTexto}>Listo</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -313,7 +278,6 @@ export default function SalasChoferScreen({ onVolver }) {
 
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Decoraciones />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contenido}
@@ -322,7 +286,7 @@ export default function SalasChoferScreen({ onVolver }) {
           <Cabecera onVolver={onVolver} titulo="Tu viaje" />
 
           <View style={styles.estadoPildora}>
-            <PuntoEstado color="#16A34A" pulsar={viaje.estado === 'abierta_con_chofer'} />
+            <PuntoEstado color={colors.verde} pulsar={viaje.estado === 'abierta_con_chofer'} />
             <Text style={styles.estadoPildoraTexto}>
               {TEXTO_ESTADO[viaje.estado] ?? viaje.estado}
             </Text>
@@ -331,7 +295,7 @@ export default function SalasChoferScreen({ onVolver }) {
           {/* Cupos, tiempo y total */}
           <View style={styles.card}>
             <View style={styles.cuposEncabezado}>
-              <Text style={styles.seccionTitulo}>PASAJEROS</Text>
+              <Text style={styles.seccionTitulo}>Pasajeros</Text>
               <Text style={styles.cuposResumen}>
                 {viaje.pasajeros} de {viaje.capacidad}
               </Text>
@@ -362,10 +326,12 @@ export default function SalasChoferScreen({ onVolver }) {
               </View>
             ) : null}
 
-            <Text style={[styles.seccionTitulo, { marginTop: 12 }]}>
-              {enCurso ? 'TOTAL DEL VIAJE' : 'TOTAL ESTIMADO'}
+            <View style={styles.separador} />
+
+            <Text style={styles.seccionTitulo}>
+              {enCurso ? 'Total del viaje' : 'Total estimado'}
             </Text>
-            <Text style={x.precioGrande}>{soles(viaje.precio_general)}</Text>
+            <Text style={styles.precioGrande}>{soles(viaje.precio_general)}</Text>
           </View>
 
           {/* Mapa con ruta y paradas */}
@@ -381,27 +347,44 @@ export default function SalasChoferScreen({ onVolver }) {
           {/* Iniciar viaje */}
           {viaje.estado === 'abierta_con_chofer' ? (
             <TouchableOpacity
-              style={[x.btn, x.btnVerde, { marginTop: 14 }, procesando && { opacity: 0.6 }]}
+              style={[
+                styles.btn,
+                styles.btnPrimario,
+                { flex: 0, marginBottom: 12 },
+                procesando && { opacity: 0.6 },
+              ]}
               onPress={iniciarViaje}
               disabled={procesando}
               activeOpacity={0.8}
             >
-              <Text style={x.btnTexto}>Iniciar viaje ({viaje.pasajeros}{' '}
-                {viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'})</Text>
+              <Text style={styles.btnTexto}>
+                Iniciar viaje ({viaje.pasajeros}{' '}
+                {viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'})
+              </Text>
             </TouchableOpacity>
           ) : null}
 
           {/* Navegación a la parada actual */}
           {enCurso && actual ? (
             <View style={styles.card}>
-              <Text style={styles.seccionTitulo}>PARADA {actual.orden} · SIGUIENTE</Text>
-              <Text style={x.paradaDir}>{actual.direccion || 'Sin referencia'}</Text>
-              <View style={x.fila}>
-                <TouchableOpacity style={[x.btn, x.btnOscuro]} onPress={() => abrirWaze(actual)} activeOpacity={0.8}>
-                  <Text style={x.btnTexto}>Waze</Text>
+              <Text style={styles.seccionTitulo}>Siguiente parada ({actual.orden})</Text>
+              <Text style={[styles.paradaDir, { fontSize: 16, marginTop: 4 }]}>
+                {actual.direccion || 'Sin referencia'}
+              </Text>
+              <View style={styles.fila}>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnContorno]}
+                  onPress={() => abrirWaze(actual)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnTextoVerde}>Waze</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[x.btn, x.btnOscuro]} onPress={() => abrirGoogle(actual)} activeOpacity={0.8}>
-                  <Text style={x.btnTexto}>Google Maps</Text>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnContorno]}
+                  onPress={() => abrirGoogle(actual)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnTextoVerde}>Google Maps</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -417,51 +400,55 @@ export default function SalasChoferScreen({ onVolver }) {
                   return (
                     <View
                       key={p.pasajero_id}
-                      style={[x.paradaCard, esActual && x.paradaCardActual]}
+                      style={[styles.paradaCard, esActual && styles.paradaCardActual]}
                     >
-                      <View style={x.paradaTop}>
-                        <View style={[x.marca, esActual && x.marcaActual, p.bajo && x.marcaBajo]}>
-                          <Text style={x.marcaTexto}>{p.orden}</Text>
+                      <View style={styles.paradaTop}>
+                        <View
+                          style={[styles.marca, esActual && styles.marcaActual, p.bajo && styles.marcaBajo]}
+                        >
+                          <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
+                            {p.orden}
+                          </Text>
                         </View>
-                        <View style={x.paradaTextos}>
+                        <View style={styles.paradaTextos}>
                           <Text
-                            style={[x.paradaDir, p.bajo && { textDecorationLine: 'line-through', color: '#9CA3AF' }]}
+                            style={[styles.paradaDir, p.bajo && styles.paradaDirBajo]}
                             numberOfLines={2}
                           >
                             {p.direccion || 'Sin referencia'}
                           </Text>
-                          <Text style={x.paradaSub}>{p.nombre}</Text>
+                          <Text style={styles.paradaSub}>{p.nombre}</Text>
                           {p.bajo ? (
                             <Text
                               style={[
-                                x.etiqueta,
-                                { color: p.estado_pago === 'pagado' ? '#16A34A' : '#DC2626' },
+                                styles.etiqueta,
+                                p.estado_pago === 'pagado' ? styles.etiquetaOk : styles.etiquetaMal,
                               ]}
                             >
                               {p.estado_pago === 'pagado' ? 'Bajó y pagó' : 'Bajó sin pagar'}
                             </Text>
                           ) : null}
                         </View>
-                        <Text style={x.paradaMonto}>{soles(p.monto)}</Text>
+                        <Text style={styles.paradaMonto}>{soles(p.monto)}</Text>
                       </View>
 
                       {enCurso && !p.bajo ? (
-                        <View style={x.fila}>
+                        <View style={styles.fila}>
                           <TouchableOpacity
-                            style={[x.btn, x.btnVerde, procesando && { opacity: 0.6 }]}
+                            style={[styles.btn, styles.btnPrimario, procesando && { opacity: 0.6 }]}
                             onPress={() => marcarBajada(p.pasajero_id, true)}
                             disabled={procesando}
                             activeOpacity={0.8}
                           >
-                            <Text style={x.btnTexto}>Bajó y pagó</Text>
+                            <Text style={styles.btnTexto}>Bajó y pagó</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            style={[x.btn, x.btnRojo, procesando && { opacity: 0.6 }]}
+                            style={[styles.btn, styles.btnPeligro, procesando && { opacity: 0.6 }]}
                             onPress={() => marcarBajada(p.pasajero_id, false)}
                             disabled={procesando}
                             activeOpacity={0.8}
                           >
-                            <Text style={x.btnTexto}>Bajó sin pagar</Text>
+                            <Text style={styles.btnTextoPeligro}>Bajó sin pagar</Text>
                           </TouchableOpacity>
                         </View>
                       ) : null}
@@ -475,12 +462,17 @@ export default function SalasChoferScreen({ onVolver }) {
           {/* Finalizar manual */}
           {enCurso ? (
             <TouchableOpacity
-              style={[x.btn, x.btnGris, { marginTop: 14 }, procesando && { opacity: 0.6 }]}
+              style={[
+                styles.btn,
+                styles.btnSecundario,
+                { flex: 0, marginTop: 4 },
+                procesando && { opacity: 0.6 },
+              ]}
               onPress={finalizarViaje}
               disabled={procesando}
               activeOpacity={0.8}
             >
-              <Text style={x.btnTextoOscuro}>Finalizar viaje</Text>
+              <Text style={styles.btnTextoVerde}>Finalizar viaje</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -493,7 +485,7 @@ export default function SalasChoferScreen({ onVolver }) {
               <Text style={styles.subtitulo}>Pasajeros en tu ruta</Text>
               {candidatos.length === 0 ? (
                 <View style={styles.buscandoFila}>
-                  <PuntoEstado color="#F58220" pulsar />
+                  <PuntoEstado color={colors.dorado} pulsar />
                   <Text style={styles.buscandoTexto}>Buscando pasajeros cerca de tu ruta…</Text>
                 </View>
               ) : null}
@@ -504,7 +496,7 @@ export default function SalasChoferScreen({ onVolver }) {
                       <Text style={styles.pinEmoji}>📍</Text>
                     </View>
                     <View style={styles.solicitudInfo}>
-                      <Text style={styles.seccionTitulo}>DESTINO</Text>
+                      <Text style={styles.seccionTitulo}>Destino</Text>
                       <Text style={styles.solicitudDestino} numberOfLines={2}>
                         {c.direccion || 'Sin referencia'}
                       </Text>
@@ -545,7 +537,6 @@ export default function SalasChoferScreen({ onVolver }) {
   // ---------- Sin sala: solicitudes que puede aceptar ----------
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Decoraciones />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.contenido}
@@ -567,7 +558,7 @@ export default function SalasChoferScreen({ onVolver }) {
             </View>
             <Text style={styles.vacioTitulo}>No hay solicitudes por ahora</Text>
             <View style={styles.buscandoFila}>
-              <PuntoEstado color="#F58220" pulsar />
+              <PuntoEstado color={colors.dorado} pulsar />
               <Text style={styles.buscandoTexto}>Se actualiza solo</Text>
             </View>
             <Text style={styles.buscandoTexto}>
@@ -585,7 +576,7 @@ export default function SalasChoferScreen({ onVolver }) {
                   <Text style={styles.pinEmoji}>📍</Text>
                 </View>
                 <View style={styles.solicitudInfo}>
-                  <Text style={styles.seccionTitulo}>DESTINO</Text>
+                  <Text style={styles.seccionTitulo}>Destino</Text>
                   <Text style={styles.solicitudDestino} numberOfLines={2}>
                     {destino?.direccion || 'Sin referencia'}
                   </Text>
