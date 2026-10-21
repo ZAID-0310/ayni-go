@@ -32,10 +32,9 @@ export default function MenuLateral({
   onIrAInicio,
   onIrAVehiculo,
   onIrADocumentos,
+  onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
-  //onIrAProgramados,
-  //onIrAProgramadosChofer,
   onCerrarSesion,
 }) {
   const x = useRef(new Animated.Value(-ANCHO)).current;
