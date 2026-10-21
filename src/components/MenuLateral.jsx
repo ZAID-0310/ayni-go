@@ -32,9 +32,10 @@ export default function MenuLateral({
   onIrAInicio,
   onIrAVehiculo,
   onIrADocumentos,
-  onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
+  //onIrAProgramados,
+  //onIrAProgramadosChofer,
   onCerrarSesion,
 }) {
   const x = useRef(new Animated.Value(-ANCHO)).current;
@@ -64,6 +65,7 @@ export default function MenuLateral({
         { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
         { label: 'Ver solicitudes', icono: 'list-outline', accion: onIrASalasChofer },
+        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Mi vehículo', icono: 'car-outline', accion: onIrAVehiculo },
         { label: 'Mis documentos', icono: 'document-text-outline', accion: onIrADocumentos },
         { label: 'Mis viajes', icono: 'car-sport-outline' },
@@ -77,6 +79,7 @@ export default function MenuLateral({
       ]
     : [
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
+        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramados },
         { label: 'Mis viajes', icono: 'car-sport-outline' },
         { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramados },
         { label: 'Historial de viajes', icono: 'time-outline' },
