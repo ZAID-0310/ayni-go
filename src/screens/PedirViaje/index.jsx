@@ -118,7 +118,11 @@ function ResumenViaje({ resumen, onCerrar }) {
   return (
     <SafeAreaView style={styles.pantalla}>
       <View style={styles.tarjetaResumen}>
-        <Text style={styles.tituloResumen}>Viaje finalizado 🎉</Text>
+                <Text style={styles.tituloResumen}>
+          {resumen.parcial
+            ? (pagado ? 'Bajaste y pagaste ✅' : 'Bajaste del viaje')
+            : 'Viaje finalizado 🎉'}
+        </Text>
         <Text style={styles.subtitulo}>Gracias por viajar con Ayni Go.</Text>
 
         {mio?.direccion ? (
@@ -206,6 +210,7 @@ export default function PedirViajeScreen({
   perfil,
   onIrAVehiculo,
   onIrADocumentos,
+  onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
   onCerrarSesion,
@@ -259,7 +264,7 @@ export default function PedirViajeScreen({
   }
 
      // ---------- Viaje terminado o cancelado ----------
-  if (!viaje && resumen) {
+    if (resumen) {
     return <ResumenViaje resumen={resumen} onCerrar={cerrarResumen} />;
   }
   if (!viaje && avisoCancelado) {
