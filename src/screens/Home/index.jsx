@@ -1,101 +1,140 @@
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  SafeAreaView, 
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
   ActivityIndicator,
-  Keyboard
 } from 'react-native';
 import { useHome } from '../../hooks/useHome';
 import { styles } from './HomeScreen.styles';
+import PedirViajeScreen from '../PedirViaje';
+import BarraInferior from '../../components/BarraInferior';
 
-export default function HomeScreen({ perfil, onCerrarSesion,onIrAVehiculo,onIrADocumentos,onIrAPedirViaje,onIrASalasChofer   }) {
+export default function HomeScreen({
+  perfil,
+  onCerrarSesion,
+  onIrAVehiculo,
+  onIrADocumentos,
+  onIrAPedirViaje,
+  onIrASalasChofer,
+  onIrAProgramados,
+  onIrAProgramadosChofer,
+}) {
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
-  
+  const [tab, setTab] = useState('inicio');
+
+  const nombre = perfil?.nombre || 'Usuario';
+  const inicial = nombre.charAt(0).toUpperCase();
+  const rol = perfil?.rol || '';
+  const rolTexto = rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : 'Sin rol';
+  const esChofer = rol === 'chofer';
+  const esPasajero = rol === 'pasajero';
+
+  const tarjetaPerfil = (
+    <View style={styles.perfilCard}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{inicial}</Text>
+      </View>
+
+      <Text style={styles.saludo}>¡Hola, {nombre}!</Text>
+      <Text style={styles.email} numberOfLines={1}>
+        {perfil?.email || '-'}
+      </Text>
+      <View style={styles.rolBadge}>
+        <Text style={styles.rolBadgeText}>{rolTexto}</Text>
+      </View>
+
+      {esChofer && (
+        <>
+          <View style={styles.separador} />
+          <View style={styles.acciones}>
+            <TouchableOpacity style={styles.btnPrincipal} onPress={onIrASalasChofer} activeOpacity={0.8}>
+              <Text style={styles.btnPrincipalText}>Ver solicitudes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnOutline} onPress={onIrAProgramadosChofer} activeOpacity={0.8}>
+              <Text style={styles.btnOutlineText}>Viajes programados</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnOutline} onPress={onIrAVehiculo} activeOpacity={0.8}>
+              <Text style={styles.btnOutlineText}>Mi vehículo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnOutline} onPress={onIrADocumentos} activeOpacity={0.8}>
+              <Text style={styles.btnOutlineText}>Mis documentos</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      <TouchableOpacity
+        style={styles.btnLogout}
+        onPress={cerrarSesion}
+        activeOpacity={0.6}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#F58220" />
+        ) : (
+          <Text style={styles.btnLogoutText}>Cerrar sesión</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ---------- PASAJERO: mapa + barra inferior ----------
+  if (esPasajero) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1 }}>
+          <View style={[{ flex: 1 }, tab !== 'inicio' && { display: 'none' }]}>
+            <PedirViajeScreen
+              perfil={perfil}
+              onIrAVehiculo={onIrAVehiculo}
+              onIrADocumentos={onIrADocumentos}
+              onIrASalasChofer={onIrASalasChofer}
+              onIrAProgramados={onIrAProgramados}
+              onIrAProgramadosChofer={onIrAProgramadosChofer}
+              onCerrarSesion={cerrarSesion}
+            />
+          </View>
+
+          {tab === 'viajes' && (
+            <View style={styles.tabVacio}>
+              <Text style={styles.tabVacioTitulo}>Mis viajes</Text>
+              <View style={{ width: '80%', marginTop: 16 }}>
+                <TouchableOpacity
+                  style={styles.btnPrincipal}
+                  onPress={onIrAProgramados}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.btnPrincipalText}>Viajes programados</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {tab === 'notificaciones' && (
+            <View style={styles.tabVacio}>
+              <Text style={styles.tabVacioTitulo}>Notificaciones</Text>
+              <Text style={styles.tabVacioTexto}>Próximamente</Text>
+            </View>
+          )}
+
+          {tab === 'perfil' && (
+            <View style={styles.tabPerfil}>{tarjetaPerfil}</View>
+          )}
+        </View>
+
+        <BarraInferior activa={tab} onCambiar={setTab} />
+      </SafeAreaView>
+    );
+  }
+
+  // ---------- CHOFER ----------
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Decoración superior */}
         <View style={styles.topDecoration} />
-
-        {/* Tarjeta de información del usuario */}
-        <View style={styles.card}>
-          <Text style={styles.titulo}>¡Bienvenido, {perfil?.nombre || 'Usuario'}!</Text>
-
-          <View style={styles.infoContainer}>
-            <View style={styles.row}>
-              <Text style={styles.label}>CORREO</Text>
-              <Text style={styles.value}>{perfil?.email || '-'}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>ROL</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{perfil?.rol || 'Sin Rol'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>ID</Text>
-              <Text style={[styles.value, { fontSize: 11, color: '#888' }]} numberOfLines={1} ellipsizeMode="middle">
-                {perfil?.id || '-'}
-              </Text>
-            </View>
-          </View>
-          {perfil?.rol === 'chofer' && (
-            <TouchableOpacity 
-                style={styles.btnSecondary} 
-                onPress={onIrAVehiculo}
-                activeOpacity={0.8}
-            >
-                <Text style={styles.btnSecondaryText}>Mi vehículo</Text>
-            </TouchableOpacity>
-          )}
-          {perfil?.rol === 'chofer' && (
-            <TouchableOpacity 
-              style={styles.btnSecondary} 
-              onPress={onIrADocumentos}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnSecondaryText}>Mis documentos</Text>
-            </TouchableOpacity>
-          )}
-          {perfil?.rol === 'pasajero' && (
-            <TouchableOpacity 
-              style={styles.btnSecondary} 
-              onPress={onIrAPedirViaje}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnSecondaryText}>Pedir Viaje</Text>
-            </TouchableOpacity>
-          )}
-                    {perfil?.rol === 'chofer' && (
-            <TouchableOpacity
-              style={styles.btnSecondary}
-              onPress={onIrASalasChofer}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnSecondaryText}>Ver solicitudes</Text>
-            </TouchableOpacity>
-          )}
-
-
-          <TouchableOpacity 
-            style={styles.btnSecondary} 
-            onPress={cerrarSesion} 
-            activeOpacity={0.8}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.btnSecondaryText}>Cerrar sesión</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Decoración inferior */}
+        {tarjetaPerfil}
         <View style={styles.bottomDecorationContainer}>
           <View style={styles.bottomYellow} />
           <View style={styles.bottomOrange} />

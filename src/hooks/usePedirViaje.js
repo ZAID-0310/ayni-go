@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback,useRef} from 'react';
 import { supabase } from '../../lib/supabase';
+import { nombreDeLugar } from '../../lib/geocoding';
 
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
@@ -17,8 +18,19 @@ export function usePedirViaje() {
   const [origen, setOrigen] = useState(null);
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false);
+  const reqDireccion = useRef(0);
   // Viaje activo (lo que devuelve mi_viaje_activo) o null si no hay
-  const [viaje, setViaje] = useState(null);
+    const [viaje, setViaje] = useState(null);
+  // Para detectar el paso de "hay viaje" a "no hay viaje"
+  const viajeRef = useRef(null);
+  // Evita mostrar "viaje cancelado" cuando el pasajero canceló él mismo
+   const cancelacionPropia = useRef(false);
+  // sala_id del viaje cuyo resumen ya se mostró (evita repetirlo al finalizar)
+  const resumenMostrado = useRef(null);
+  // Resumen final del viaje y aviso de cancelación
+  const [resumen, setResumen] = useState(null);
+  const [avisoCancelado, setAvisoCancelado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [cargandoInicial, setCargandoInicial] = useState(true);
   // Mensaje de error visible en la pantalla (en vez de Alert nativo)
@@ -37,13 +49,57 @@ export function usePedirViaje() {
   const sesionBusqueda = useRef(nuevoToken());
 
 
-  const refrescar = useCallback(async () => {
+    const refrescar = useCallback(async () => {
     const { data, error } = await supabase.rpc('mi_viaje_activo');
     if (error) {
       console.error('Error al consultar el viaje:', error.message);
       return;
     }
+
+       const previo = viajeRef.current;
+    viajeRef.current = data;
     setViaje(data);
+
+    // El chofer ya marcó mi bajada: resumen inmediato, sin esperar el fin del viaje
+    if (
+      data?.estado === 'en_curso' &&
+      data.mi_destino?.bajo &&
+      resumenMostrado.current !== data.sala_id
+    ) {
+      const m = data.mi_destino;
+      const monto = Number(m.monto ?? 0);
+      const pagado = m.estado_pago === 'pagado';
+      resumenMostrado.current = data.sala_id;
+      setResumen({
+        sala_id: data.sala_id,
+        parcial: true,
+        total_esperado: monto,
+        total_cobrado: pagado ? monto : 0,
+        total_sin_cobrar: pagado ? 0 : monto,
+        pasajeros: [
+          { direccion: m.direccion, orden: m.orden, monto, estado_pago: m.estado_pago },
+        ],
+      });
+    }
+
+    // Había viaje y ahora no: terminó o se canceló
+    if (previo && !data) {
+      if (previo.estado === 'en_curso') {
+        // Si ya vio su resumen al bajar, no se vuelve a mostrar
+        if (resumenMostrado.current !== previo.sala_id) {
+          const { data: res, error: errorRes } = await supabase.rpc('resumen_viaje');
+          if (errorRes) {
+            console.error('Error al cargar el resumen:', errorRes.message);
+          } else if (res) {
+            resumenMostrado.current = previo.sala_id;
+            setResumen(res);
+          }
+        }
+      } else if (!cancelacionPropia.current) {
+        setAvisoCancelado(true);
+      }
+      cancelacionPropia.current = false;
+    }
   }, []);
 
   const cargarOrigen = useCallback(async () => {
@@ -149,6 +205,23 @@ export function usePedirViaje() {
     };
   }, [consulta, origen]);
 
+
+const moverDestino = useCallback(async (lat, lng) => {
+  const id = ++reqDireccion.current;
+  setDestino((actual) => ({ ...actual, lat, lng, lugar: null }));
+  setBuscandoDireccion(true);
+  try {
+    const nombre = await nombreDeLugar(lat, lng);
+    if (id !== reqDireccion.current) return; // el puntero ya se movió
+    setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+  } catch {
+    // sin nombre: el viaje se puede pedir igual
+  } finally {
+    if (id === reqDireccion.current) setBuscandoDireccion(false);
+  }
+}, []);
+
+
 const elegirSugerencia = async (s) => {
   try {
     const url =
@@ -162,6 +235,8 @@ const elegirSugerencia = async (s) => {
     textoElegido.current = s.nombre;
     setConsulta(s.nombre);
     setSugerencias([]);
+    reqDireccion.current++;
+    setBuscandoDireccion(false);
     setDestino((actual) => ({ ...actual, lat, lng, lugar: s.nombre }));
     sesionBusqueda.current = nuevoToken(); // cierra la sesión: la próxima búsqueda es nueva
     return { lat, lng };
@@ -207,13 +282,32 @@ const elegirSugerencia = async (s) => {
 
   const confirmarCancelar = async () => {
     setCargando(true);
+    cancelacionPropia.current = true;
     const { error: errorRpc } = await supabase.rpc('cancelar_pedido');
     if (errorRpc) {
+      cancelacionPropia.current = false;
       setError(errorRpc.message);
     }
     setConfirmandoCancelar(false);
     await refrescar();
     setCargando(false);
+  };
+
+    const reiniciarPedido = () => {
+    setDestino(null);
+    setConsulta('');
+    setSugerencias([]);
+    textoElegido.current = null;
+  };
+
+  const cerrarResumen = () => {
+    setResumen(null);
+    reiniciarPedido();
+  };
+
+  const cerrarAviso = () => {
+    setAvisoCancelado(false);
+    reiniciarPedido();
   };
 
   // Una vez que el viaje arrancó ya no se puede cancelar
@@ -240,5 +334,11 @@ const elegirSugerencia = async (s) => {
     sugerencias,
     buscando,
     elegirSugerencia,
+    moverDestino,
+    buscandoDireccion,
+    resumen,
+    cerrarResumen,
+    avisoCancelado,
+    cerrarAviso,
   };
 }

@@ -1,170 +1,113 @@
 import { StyleSheet } from 'react-native';
 
+const GREEN = '#0F5132';
+const CREAM = '#FAF7EE';
+const GREEN_SOFT = '#DCEBDD';
+const GREEN_SOFTER = '#E8F2E6';
+
 export const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FDF8EC',
-  },
+  safeArea: { flex: 1, backgroundColor: CREAM },
+
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 28,
-    paddingTop: 40,
     paddingBottom: 60,
+  },
+
+  // Flecha volver
+  backButton: {
+    width: 40,
+    height: 40,
     justifyContent: 'center',
+    alignItems: 'flex-start',
   },
-  topDecoration: {
-    position: 'absolute',
-    top: -30,
-    left: -30,
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: '#F7C942',
-  },
-  headerContainer: {
+
+  // Logo
+  headerContainer: { alignItems: 'center', marginTop: 0, marginBottom: 4 },
+  logoImage: { width: 300, height: 200 },
+
+  // Título
+  titleContainer: { marginBottom: 20 },
+  titulo: { fontSize: 26, fontWeight: '800', color: GREEN },
+  subtitulo: { fontSize: 14, color: '#555', marginTop: 4, lineHeight: 20 },
+
+  // Formulario
+  formContainer: { width: '100%' },
+  inputWrapper: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#1E1E1E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  logoImage: {
-    width: 50,
-    height: 50,
-  },
-  titulo: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#1A1A1A',
-    letterSpacing: 1,
-  },
-  subtitulo: {
-    fontSize: 13,
-    color: '#777',
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  formContainer: {
-    width: '100%',
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 6,
-    marginTop: 10,
-    letterSpacing: 0.5,
-  },
-  input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E2E2',
-    borderRadius: 8,
+    borderColor: '#E3E0D5',
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    marginBottom: 14,
+    minHeight: 56,
+  },
+  inputIcon: { marginRight: 12 },
+  input: {
+    flex: 1,
     fontSize: 14,
     color: '#333',
-    marginBottom: 8,
-  },
-  btnPrimary: {
-    backgroundColor: '#F58220',
-    borderRadius: 25,
     paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-    elevation: 3,
   },
-  btnPrimaryText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 18,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#333333',
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    fontSize: 12,
-    color: '#666',
-  },
-  btnDriver: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  btnDriverText: {
-    fontSize: 14,
-    color: '#555',
-    textDecorationLine: 'underline',
-    fontWeight: '500',
-  },
-  footerContainer: {
-    alignItems: 'center',
-    marginTop: 25,
-  },
+  eyeButton: { position: 'absolute', right: 14 },
+
+  forgotWrapper: { alignSelf: 'flex-end', marginBottom: 18 },
   forgotText: {
-    color: '#2A75D3',
+    color: GREEN,
     fontSize: 13,
     fontWeight: '600',
-    marginBottom: 12,
+    textDecorationLine: 'underline',
   },
-  registerContainer: {
-    flexDirection: 'row',
+
+  btnPrimary: {
+    backgroundColor: GREEN,
+    borderRadius: 999,
+    paddingVertical: 16,
     alignItems: 'center',
+    elevation: 3,
   },
-  registerText: {
-    fontSize: 13,
-    color: '#555',
-  },
+  btnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+  // Footer
+  footerContainer: { alignItems: 'center', marginTop: 28 },
+  registerContainer: { flexDirection: 'row', alignItems: 'center' },
+  registerText: { fontSize: 13, color: '#555' },
   registerLink: {
     fontSize: 13,
-    color: '#555',
+    color: GREEN,
     fontWeight: 'bold',
     textDecorationLine: 'underline',
   },
-  homeLink: {
-    fontSize: 12,
-    color: '#888',
-  },
+  homeLink: { fontSize: 12, color: '#888' },
+
+  // Decoración inferior
   bottomDecorationContainer: {
     position: 'absolute',
-    bottom: 0,
+    left: 0,
     right: 0,
-    width: 140,
-    height: 140,
-    overflow: 'hidden',
-    pointerEvents: 'none',
-  },
-  bottomYellow: {
-    position: 'absolute',
-    bottom: -20,
-    right: -20,
-    width: 130,
+    bottom: 0,
     height: 130,
-    borderRadius: 65,
-    backgroundColor: '#F7C942',
+    overflow: 'hidden',
   },
-  bottomOrange: {
+  hillBack: {
     position: 'absolute',
-    bottom: -40,
-    right: -10,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F58220',
+    bottom: -90,
+    left: -60,
+    width: 430,
+    height: 200,
+    borderRadius: 200,
+    backgroundColor: GREEN_SOFT,
+    opacity: 0.8,
+  },
+  hillFront: {
+    position: 'absolute',
+    bottom: -120,
+    right: -130,
+    width: 430,
+    height: 210,
+    borderRadius: 210,
+    backgroundColor: GREEN_SOFTER,
   },
 });
