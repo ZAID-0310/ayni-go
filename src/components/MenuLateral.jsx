@@ -37,17 +37,25 @@ export default function MenuLateral({
   onIrAProgramadosChofer,
   onCerrarSesion,
 }) {
-  const x = useRef(new Animated.Value(-ANCHO)).current;
+    const x = useRef(new Animated.Value(-ANCHO)).current;
+  const opacidadFondo = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       x.setValue(-ANCHO);
-      Animated.timing(x, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+      opacidadFondo.setValue(0);
+      Animated.parallel([
+        Animated.timing(x, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(opacidadFondo, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
     }
-  }, [visible, x]);
+  }, [visible, x, opacidadFondo]);
 
   const cerrarConAnimacion = (despues) => {
-    Animated.timing(x, { toValue: -ANCHO, duration: 200, useNativeDriver: true }).start(() => {
+    Animated.parallel([
+      Animated.timing(x, { toValue: -ANCHO, duration: 200, useNativeDriver: true }),
+      Animated.timing(opacidadFondo, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => {
       onCerrar();
       if (despues) despues();
     });
@@ -61,16 +69,14 @@ export default function MenuLateral({
   // Opciones que ya funcionan llevan accion; las demas muestran "Función en desarrollo"
   const items = esChofer
     ? [
-        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
+        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Ver solicitudes', icono: 'list-outline', accion: onIrASalasChofer },
         //{ label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
         { label: 'Mi vehículo', icono: 'car-outline', accion: onIrAVehiculo },
         { label: 'Mis documentos', icono: 'document-text-outline', accion: onIrADocumentos },
         { label: 'Mis viajes', icono: 'car-sport-outline' },
-        { label: 'Balance y ganancias', icono: 'wallet-outline' },
         { label: 'Historial de viajes', icono: 'time-outline' },
-        { label: 'Zonas de trabajo', icono: 'navigate-outline' },
         { label: 'Calificaciones', icono: 'star-outline' },
         { label: 'Seguridad', icono: 'shield-checkmark-outline' },
         { label: 'Ayuda y soporte', icono: 'headset-outline' },
@@ -92,12 +98,12 @@ export default function MenuLateral({
       <View style={styles.raiz}>
         <Animated.View style={[styles.panel, { transform: [{ translateX: x }] }]}>
           <ScrollView
-            contentContainerStyle={[styles.contenido, { paddingTop: STATUS_BAR + 20 }]}
+            contentContainerStyle={[styles.contenido, { paddingTop: STATUS_BAR + 8 }]}
             showsVerticalScrollIndicator={false}
           >
             {/* Logo */}
             <Image
-              source={require('../../assets/logo-texto.png')}
+              source={require('../../assets/logo-horizontal.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -166,8 +172,8 @@ export default function MenuLateral({
         </Animated.View>
 
         {/* Zona oscura: tocar fuera cierra el menú */}
-        <TouchableWithoutFeedback onPress={() => cerrarConAnimacion()}>
-          <View style={styles.fondo} />
+                <TouchableWithoutFeedback onPress={() => cerrarConAnimacion()}>
+          <Animated.View style={[styles.fondo, { opacity: opacidadFondo }]} />
         </TouchableWithoutFeedback>
       </View>
     </Modal>
@@ -180,9 +186,8 @@ const styles = StyleSheet.create({
   fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   contenido: { paddingHorizontal: 18, paddingBottom: 28 },
 
-  logo: { width: 210, height: 90, alignSelf: 'flex-start', marginBottom: 12 },
-
-  usuario: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  logo: { width: 260, height: 100, alignSelf: 'flex-start', marginBottom: 0 },
+    usuario: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   avatar: {
     width: 64, height: 64, borderRadius: 32, backgroundColor: VERDE,
     alignItems: 'center', justifyContent: 'center', marginRight: 14,

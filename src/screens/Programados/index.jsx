@@ -64,7 +64,7 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
           </TouchableOpacity>
         )}
 
-        {cargando && <ActivityIndicator style={styles.cargando} color="#F58220" />}
+                {cargando && <ActivityIndicator style={styles.cargando} color="#0F5132" />}
 
         {!cargando && lista.length === 0 && (
           <Text style={styles.vacio}>Aún no tienes viajes programados.</Text>
@@ -79,7 +79,9 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
               <View style={styles.cardTop}>
                 <Text style={styles.etiqueta}>{p.etiqueta}</Text>
                 <View style={[styles.badge, styles['badge_' + p.estado]]}>
-                  <Text style={styles.badgeText}>{ETIQUETA_ESTADO[p.estado] || p.estado}</Text>
+                  <Text style={[styles.badgeText, p.estado === 'en_curso' && { color: '#FFFFFF' }]}>
+                    {ETIQUETA_ESTADO[p.estado] || p.estado}
+                  </Text>
                 </View>
               </View>
 

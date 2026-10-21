@@ -248,8 +248,7 @@ export default function PedirViajeScreen({
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   useEffect(() => {
-    const id = setTimeout(() => setMapaListo(true), 6000);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => setMapaListo(true), 2500);    return () => clearTimeout(id);
   }, []);
 
   if (cargandoInicial) {
@@ -542,6 +541,7 @@ export default function PedirViajeScreen({
         <Mapbox.MapView
           style={styles.mapa}
           onPress={manejarToque}
+                    onDidFinishLoadingMap={() => setMapaListo(true)}
           onDidFinishRenderingMapFully={() => setMapaListo(true)}
         >
           <Mapbox.Camera

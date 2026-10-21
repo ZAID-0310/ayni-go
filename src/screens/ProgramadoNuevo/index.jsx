@@ -103,7 +103,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
   if (!origen) {
     return (
       <View style={styles.centrado}>
-        <ActivityIndicator size="large" color="#F58220" />
+        <ActivityIndicator size="large" color="#0F5132" />
         <Text style={styles.textoCentrado}>Cargando mapa…</Text>
         <TouchableOpacity onPress={onVolver} style={styles.btnTexto}>
           <Text style={styles.btnTextoText}>← Volver</Text>
@@ -152,7 +152,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
           value={consulta}
           onChangeText={setConsulta}
         />
-        {buscando ? <ActivityIndicator style={styles.buscadorCargando} color="#1E1E1E" /> : null}
+        {buscando ? <ActivityIndicator style={styles.buscadorCargando} color="#0F5132" /> : null}
         {sugerencias.map((s) => (
           <TouchableOpacity
             key={s.id}
