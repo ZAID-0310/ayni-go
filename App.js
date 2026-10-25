@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Appearance } from 'react-native';
+import { Appearance, View, StatusBar } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
 import LoginScreen from './src/screens/Login';
@@ -12,12 +13,59 @@ import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
 import ProgramadoNuevoScreen from './src/screens/ProgramadoNuevo';
 import ProgramadosChoferScreen from './src/screens/ProgramadosChofer';
+import HistorialScreen from './src/screens/Historial';
+import CuentaScreen from './src/screens/Cuenta';
+import RecuperarClaveScreen from './src/screens/RecuperarClave';
+import BarraInferior from './src/components/BarraInferior';
+
+const TABS_PASAJERO = [
+  { id: 'inicio', label: 'Inicio', icono: 'home' },
+  { id: 'programados', label: 'Programados', icono: 'calendar' },
+  { id: 'historial', label: 'Historial', icono: 'time' },
+  { id: 'cuenta', label: 'Mi cuenta', icono: 'person' },
+];
+
+const TABS_CHOFER = [
+  { id: 'inicio', label: 'Solicitudes', icono: 'list' },
+  { id: 'programados', label: 'Programados', icono: 'calendar' },
+  { id: 'historial', label: 'Historial', icono: 'time' },
+  { id: 'cuenta', label: 'Mi cuenta', icono: 'person' },
+];
+
+const TAB_DE_PANTALLA = {
+  home: 'inicio',
+  programados: 'programados',
+  programadosChofer: 'programados',
+  historial: 'historial',
+  cuenta: 'cuenta',
+};
 
 // Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
 Appearance.setColorScheme('light');
 
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <Marco>
+        <AppContenido />
+      </Marco>
+    </SafeAreaProvider>
+  );
+}
+
+// Deja libre el espacio de la barra de navegación del sistema en todas las pantallas
+function Marco({ children }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, paddingBottom: insets.bottom, backgroundColor: '#FAF7EE' }}>
+      <StatusBar barStyle="dark-content" />
+      {children}
+    </View>
+  );
+}
+
+function AppContenido() {
   // 'bienvenida' | 'login' | 'registro' | 'home' | 'vehiculo' | 'documentos'
   // | 'pedirViaje' | 'salasChofer'
   const [pantalla, setPantalla] = useState('bienvenida');
@@ -39,6 +87,27 @@ export default function App() {
     setPantalla('home');
   };
 
+    const esChofer = perfil?.rol === 'chofer';
+
+  const irATab = (id) => {
+    if (id === 'inicio') setPantalla('home');
+    else if (id === 'programados') setPantalla(esChofer ? 'programadosChofer' : 'programados');
+    else setPantalla(id); // 'historial' | 'cuenta'
+  };
+
+  // Envuelve una pantalla principal con la barra inferior
+  const conBarra = (pantallaJsx) => (
+    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>{pantallaJsx}</View>
+      <BarraInferior
+        activa={TAB_DE_PANTALLA[pantalla]}
+        onCambiar={irATab}
+        tabs={esChofer ? TABS_CHOFER : TABS_PASAJERO}
+      />
+    </View>
+  );
+
+
   const manejarCerrarSesion = () => {
     setPerfil(null);
     setRolElegido(null);
@@ -49,7 +118,7 @@ export default function App() {
     return (
       <VehicleScreen
         usuario={perfil}
-        onVolver={() => setPantalla('home')}
+        onVolver={() => setPantalla('cuenta')}
       />
     );
   }
@@ -72,22 +141,26 @@ export default function App() {
   }
 
   if (pantalla === 'programados') {
-    return (
+        return conBarra(
       <ProgramadosScreen
         onVolver={() => setPantalla('home')}
-                onIrAlViaje={() => setPantalla('pedirViaje')}
+        onIrAlViaje={() => setPantalla('pedirViaje')}
         onNuevo={() => setPantalla('programadoNuevo')}
       />
     );
   }
 
   if (pantalla === 'programadosChofer') {
-    return (
+        return conBarra(
       <ProgramadosChoferScreen
         onVolver={() => setPantalla('home')}
         onIrAlViaje={() => setPantalla('salasChofer')}
       />
     );
+  }
+
+    if (pantalla === 'historial') {
+    return conBarra(<HistorialScreen onVolver={() => setPantalla('home')} />);
   }
 
   if (pantalla === 'programadoNuevo') {
@@ -99,8 +172,18 @@ export default function App() {
     );
   }
 
+    if (pantalla === 'cuenta') {
+    return conBarra(
+      <CuentaScreen
+        perfil={perfil}
+        onIrAVehiculo={() => setPantalla('vehiculo')}
+        onCerrarSesion={manejarCerrarSesion}
+      />
+    );
+  }
+
   if (pantalla === 'home') {
-    return (
+    return conBarra(
       <HomeScreen
         perfil={perfil}
         onCerrarSesion={manejarCerrarSesion}
@@ -110,6 +193,7 @@ export default function App() {
         onIrASalasChofer={() => setPantalla('salasChofer')}
         onIrAProgramados={() => setPantalla('programados')}
         onIrAProgramadosChofer={() => setPantalla('programadosChofer')}
+        onIrAHistorial={() => setPantalla('historial')}
       />
     );
   }
@@ -125,12 +209,22 @@ export default function App() {
     );
   }
 
+    if (pantalla === 'recuperar') {
+    return (
+      <RecuperarClaveScreen
+        onVolver={() => setPantalla('login')}
+        onTerminado={() => setPantalla('login')}
+      />
+    );
+  }
+
   if (pantalla === 'login') {
     return (
       <LoginScreen
         rol={rolElegido}
         onLoginExitoso={manejarLoginExitoso}
         onIrARegistro={() => setPantalla('registro')}
+        onIrARecuperar={() => setPantalla('recuperar')}
         onVolver={() => setPantalla('bienvenida')}
       />
     );

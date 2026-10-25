@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';import {
   ScrollView,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useElegirDestino } from '../../hooks/useElegirDestino';
 import { useProgramados, formatearHoraInput, parseHora } from '../../hooks/useProgramados';
 import { styles } from './ProgramadoNuevoScreen.styles';
@@ -42,6 +43,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
 
   const { guardar, trabajando } = useProgramados();
 
+    const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
   const [etiqueta, setEtiqueta] = useState('');
   const [horaTxt, setHoraTxt] = useState('');
@@ -103,7 +105,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
   if (!origen) {
     return (
       <View style={styles.centrado}>
-        <ActivityIndicator size="large" color="#F58220" />
+        <ActivityIndicator size="large" color="#0F5132" />
         <Text style={styles.textoCentrado}>Cargando mapa…</Text>
         <TouchableOpacity onPress={onVolver} style={styles.btnTexto}>
           <Text style={styles.btnTextoText}>← Volver</Text>
@@ -152,7 +154,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
           value={consulta}
           onChangeText={setConsulta}
         />
-        {buscando ? <ActivityIndicator style={styles.buscadorCargando} color="#1E1E1E" /> : null}
+        {buscando ? <ActivityIndicator style={styles.buscadorCargando} color="#0F5132" /> : null}
         {sugerencias.map((s) => (
           <TouchableOpacity
             key={s.id}
@@ -167,7 +169,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
       </View>
 
       {/* Panel inferior */}
-        <View style={[styles.panel, { bottom: tecladoAlto }]}>
+                <View style={[styles.panel, { bottom: tecladoAlto, paddingBottom: 18 + (tecladoAlto ? 0 : insets.bottom) }]}>
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.panelTitulo}>
             {destino ? '📍 Destino elegido' : '🎯 Toca el mapa para elegir el destino'}

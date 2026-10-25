@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProgramados, formatearHora, formatearHoraInput } from '../../hooks/useProgramados';
 import { styles } from './ProgramadosScreen.styles';
 
@@ -24,6 +25,7 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
     const { lista, cargando, trabajando, activar, cambiarHora, cancelar, eliminar } = useProgramados();
 
   // Qué tarjeta tiene el campo de hora abierto, y para qué
+    const insets = useSafeAreaInsets();
   const [editando, setEditando] = useState(null); // { id, modo: 'activar' | 'cambiar' }
   const [horaTxt, setHoraTxt] = useState('');
 
@@ -57,14 +59,14 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
         <Text style={styles.titulo}>Viajes programados</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+            <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 40 + insets.bottom }]}>
         {onNuevo && (
           <TouchableOpacity style={styles.btnPrincipal} onPress={onNuevo} activeOpacity={0.8}>
             <Text style={styles.btnPrincipalText}>+ Nuevo destino programado</Text>
           </TouchableOpacity>
         )}
 
-        {cargando && <ActivityIndicator style={styles.cargando} color="#F58220" />}
+                {cargando && <ActivityIndicator style={styles.cargando} color="#0F5132" />}
 
         {!cargando && lista.length === 0 && (
           <Text style={styles.vacio}>Aún no tienes viajes programados.</Text>
@@ -79,7 +81,9 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
               <View style={styles.cardTop}>
                 <Text style={styles.etiqueta}>{p.etiqueta}</Text>
                 <View style={[styles.badge, styles['badge_' + p.estado]]}>
-                  <Text style={styles.badgeText}>{ETIQUETA_ESTADO[p.estado] || p.estado}</Text>
+                  <Text style={[styles.badgeText, p.estado === 'en_curso' && { color: '#FFFFFF' }]}>
+                    {ETIQUETA_ESTADO[p.estado] || p.estado}
+                  </Text>
                 </View>
               </View>
 

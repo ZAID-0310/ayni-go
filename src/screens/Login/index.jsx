@@ -20,7 +20,7 @@ import { styles } from './LoginScreen.styles';
 const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 const GREEN = '#0F5132';
 
-export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolver }) {
+export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onIrARecuperar, onVolver }) {
   const {
     email,
     setEmail,
@@ -117,7 +117,7 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
 
             <TouchableOpacity
               style={styles.forgotWrapper}
-              onPress={() => Alert.alert('Recuperar contraseña', 'Función en desarrollo')}
+                            onPress={onIrARecuperar}
             >
               <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>

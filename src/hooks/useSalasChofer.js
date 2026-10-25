@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
 
-const INTERVALO_MS = 5000;
-const PING_MS = 12000;
+const INTERVALO_MS = 2000;
+const PING_MS = 6000;
 
 const conTimeout = (promesa, ms) =>
   Promise.race([

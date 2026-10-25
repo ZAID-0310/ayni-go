@@ -10,6 +10,7 @@ import {
   Linking,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import styles, { colors } from './SalasChoferScreen.styles';
 
@@ -32,9 +33,14 @@ const TEXTO_PAGO = {
   sin_pagar: 'No pagó',
 };
 
-function Cabecera({ titulo, subtitulo }) {
+function Cabecera({ titulo, subtitulo, onVolver }) {
   return (
     <View style={styles.cabecera}>
+      {onVolver ? (
+        <TouchableOpacity onPress={onVolver} activeOpacity={0.7} style={{ paddingVertical: 6, alignSelf: 'flex-start' }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.verde }}>← Volver</Text>
+        </TouchableOpacity>
+      ) : null}
       <Text style={styles.titulo}>{titulo}</Text>
       {subtitulo ? <Text style={styles.subtituloCabecera}>{subtitulo}</Text> : null}
     </View>
@@ -131,34 +137,55 @@ function MapaChofer({ origen, ruta, paradas, actual }) {
           </View>
         </Mapbox.PointAnnotation>
 
-        {paradas.map((p) => {
-          const esActual = actual?.pasajero_id === p.pasajero_id;
-          return (
-            <Mapbox.PointAnnotation
-              key={`${p.pasajero_id}-${p.bajo}-${esActual}`}
-              id={`parada-${p.pasajero_id}`}
-              coordinate={[p.lng, p.lat]}
-            >
-              <View
-                style={[
-                  styles.marca,
-                  esActual && styles.marcaActual,
-                  p.bajo && styles.marcaBajo,
-                ]}
-              >
-                <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
-                  {p.orden}
-                </Text>
-              </View>
-            </Mapbox.PointAnnotation>
-          );
-        })}
+                <Mapbox.ShapeSource
+          id="paradasChofer"
+          shape={{
+            type: 'FeatureCollection',
+            features: paradas.map((p) => ({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+              properties: {
+                orden: String(p.orden),
+                color: p.bajo
+                  ? colors.gris
+                  : actual?.pasajero_id === p.pasajero_id
+                    ? colors.dorado
+                    : colors.verdeProfundo,
+                textoColor:
+                  !p.bajo && actual?.pasajero_id === p.pasajero_id
+                    ? colors.verdeProfundo
+                    : '#FFFFFF',
+              },
+            })),
+          }}
+        >
+          <Mapbox.CircleLayer
+            id="paradasCirculos"
+            style={{
+              circleRadius: 14,
+              circleColor: ['get', 'color'],
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 2,
+            }}
+          />
+          <Mapbox.SymbolLayer
+            id="paradasNumeros"
+            style={{
+              textField: ['get', 'orden'],
+              textSize: 14,
+              textColor: ['get', 'textoColor'],
+              textAllowOverlap: true,
+              textIgnorePlacement: true,
+            }}
+          />
+        </Mapbox.ShapeSource>
       </Mapbox.MapView>
     </View>
   );
 }
 
 export default function SalasChoferScreen({ onVolver }) {
+  const insets = useSafeAreaInsets();
   const {
     solicitudes,
     viaje,
@@ -177,9 +204,14 @@ export default function SalasChoferScreen({ onVolver }) {
     iniciarViaje,
     marcarBajada,
     finalizarViaje,
-    resumen,
+       resumen,
     cerrarResumen,
   } = useSalasChofer();
+
+  const cerrarYVolver = () => {
+    cerrarResumen();
+    onVolver();
+  };
 
   if (cargandoInicial) {
     return (
@@ -206,10 +238,10 @@ export default function SalasChoferScreen({ onVolver }) {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.contenido}
+                    contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
-          <Cabecera onVolver={cerrarResumen} titulo="Viaje finalizado" />
+          <Cabecera onVolver={cerrarYVolver} titulo="Viaje finalizado" />
           <View style={styles.card}>
             <Text style={styles.seccionTitulo}>Resumen de cobro</Text>
             <View style={styles.resumenFila}>
@@ -251,7 +283,7 @@ export default function SalasChoferScreen({ onVolver }) {
 
           <TouchableOpacity
             style={[styles.btn, styles.btnPrimario, { flex: 0, marginTop: 14 }]}
-            onPress={cerrarResumen}
+            onPress={cerrarYVolver}
             activeOpacity={0.8}
           >
             <Text style={styles.btnTexto}>Listo</Text>
@@ -280,11 +312,10 @@ export default function SalasChoferScreen({ onVolver }) {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.contenido}
+                    contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
-          <Cabecera onVolver={onVolver} titulo="Tu viaje" />
-
+          <Cabecera titulo="Tu viaje" />
           <View style={styles.estadoPildora}>
             <PuntoEstado color={colors.verde} pulsar={viaje.estado === 'abierta_con_chofer'} />
             <Text style={styles.estadoPildoraTexto}>
@@ -539,7 +570,7 @@ export default function SalasChoferScreen({ onVolver }) {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.contenido}
+                  contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <Cabecera
