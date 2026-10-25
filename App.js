@@ -178,6 +178,7 @@ function AppContenido() {
         perfil={perfil}
         onIrAVehiculo={() => setPantalla('vehiculo')}
         onCerrarSesion={manejarCerrarSesion}
+        onFotoActualizada={(url) => setPerfil((p) => (p ? { ...p, foto_url: url } : p))}
       />
     );
   }

@@ -54,7 +54,7 @@ export function useRecuperarClave({ onTerminado }) {
     setPaso('clave');
   };
 
-  const guardarClave = async () => {
+    const guardarClave = async () => {
     limpiar();
     if (clave.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.');
@@ -66,9 +66,15 @@ export function useRecuperarClave({ onTerminado }) {
     }
     setCargando(true);
     const { error: err } = await supabase.auth.updateUser({ password: clave });
+    console.log(err)
     if (err) {
       setCargando(false);
-      setError('No se pudo guardar la contraseña. Intenta de nuevo.');
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('different from the old password') || msg.includes('same_password')) {
+        setError('Escribe una contraseña distinta a la que ya tenías.');
+      } else {
+        setError('No se pudo guardar la contraseña. Intenta de nuevo.');
+      }
       return;
     }
     // verifyOtp abrió sesión: se cierra para que entre por el Login normal
