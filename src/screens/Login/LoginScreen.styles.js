@@ -70,6 +70,23 @@ export const styles = StyleSheet.create({
   },
   btnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 
+  // Botón con estado de carga mejorado
+  btnPrimaryLoading: {
+    backgroundColor: '#0a3d25',
+    opacity: 0.9,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimaryTextLoading: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+
   // Footer
   footerContainer: { alignItems: 'center', marginTop: 28 },
   registerContainer: { flexDirection: 'row', alignItems: 'center' },
@@ -109,5 +126,64 @@ export const styles = StyleSheet.create({
     height: 210,
     borderRadius: 210,
     backgroundColor: GREEN_SOFTER,
+  },
+
+  // --- ESTILOS DEL MODAL MODERNO ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FAF7EE',
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#E3E0D5',
+  },
+  modalIconContainer: {
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F5132',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: '#0F5132',
+    borderRadius: 999,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#0F5132',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
