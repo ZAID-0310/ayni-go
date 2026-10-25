@@ -69,14 +69,7 @@ export default function MenuLateral({
   // Opciones que ya funcionan llevan accion; las demas muestran "Función en desarrollo"
   const items = esChofer
     ? [
-        { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
-        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
-        { label: 'Ver solicitudes', icono: 'list-outline', accion: onIrASalasChofer },
-        //{ label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramadosChofer },
-        { label: 'Mi vehículo', icono: 'car-outline', accion: onIrAVehiculo },
         { label: 'Mis documentos', icono: 'document-text-outline', accion: onIrADocumentos },
-        { label: 'Mis viajes', icono: 'car-sport-outline' },
-        { label: 'Historial de viajes', icono: 'time-outline' },
         { label: 'Calificaciones', icono: 'star-outline' },
         { label: 'Seguridad', icono: 'shield-checkmark-outline' },
         { label: 'Ayuda y soporte', icono: 'headset-outline' },
@@ -84,10 +77,6 @@ export default function MenuLateral({
       ]
     : [
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
-        { label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramados },
-        { label: 'Mis viajes', icono: 'car-sport-outline' },
-        //{ label: 'Viajes programados', icono: 'calendar-outline', accion: onIrAProgramados },
-        { label: 'Historial de viajes', icono: 'time-outline' },
         { label: 'Seguridad', icono: 'shield-checkmark-outline' },
         { label: 'Ayuda y soporte', icono: 'headset-outline' },
         { label: 'Configuración', icono: 'settings-outline' },

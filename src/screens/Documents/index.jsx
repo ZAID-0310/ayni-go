@@ -12,18 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDriverDocuments } from '../../hooks/useDriverDocuments';
-import MenuLateral from '../../components/MenuLateral';
-import BarraInferior from '../../components/BarraInferior';
 import styles, { colors } from './DocumentsScreen.styles';
 
 const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
-const TABS_CHOFER = [
-  { id: 'solicitudes', label: 'Solicitudes', icono: 'list' },
-  { id: 'vehiculo', label: 'Mi vehículo', icono: 'car' },
-  { id: 'documentos', label: 'Documentos', icono: 'document-text' },
-  { id: 'programados', label: 'Programados', icono: 'calendar' },
-];
 
 // Apariencia de cada estado del documento
 const ESTADOS = {
@@ -57,19 +49,9 @@ function Logo() {
   );
 }
 
-export default function DocumentsScreen({
-  usuario,
-  perfil,
-  onVolver,
-  onIrAInicio,
-  onIrAVehiculo,
-  onIrASalasChofer,
-  onIrAProgramados,
-  onIrAProgramadosChofer,
-  onCerrarSesion,
-}) {
+export default function DocumentsScreen({ usuario, onVolver }) {
   const { TIPOS, documentos, subiendo, cargandoInicial, subirDocumento } = useDriverDocuments(usuario);
-  const [menuAbierto, setMenuAbierto] = useState(false);
+  
   const [conScroll, setConScroll] = useState(false);
 
   if (cargandoInicial) {
@@ -101,13 +83,6 @@ export default function DocumentsScreen({
     if (bajo !== conScroll) setConScroll(bajo);
   };
 
-  // Navegación de la barra inferior
-  const cambiarTab = (id) => {
-    if (id === 'solicitudes') return (onIrAInicio ?? onVolver)?.();
-    if (id === 'vehiculo') return onIrAVehiculo?.();
-    if (id === 'programados') return onIrAProgramadosChofer?.();
-    // 'documentos' ya es esta pantalla
-  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -122,11 +97,11 @@ export default function DocumentsScreen({
         <View style={styles.headerLado}>
           <TouchableOpacity
             style={styles.btnMenu}
-            onPress={() => setMenuAbierto(true)}
+            onPress={onVolver}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="menu" size={28} color={colors.verde} />
+            <Ionicons name="arrow-back" size={26} color={colors.verde} />
           </TouchableOpacity>
         </View>
 
@@ -225,22 +200,6 @@ export default function DocumentsScreen({
           );
         })}
       </ScrollView>
-
-      {/* Barra inferior siempre visible */}
-      <BarraInferior activa="documentos" onCambiar={cambiarTab} tabs={TABS_CHOFER} />
-
-      <MenuLateral
-        visible={menuAbierto}
-        onCerrar={() => setMenuAbierto(false)}
-        perfil={perfil ?? usuario}
-        onIrAInicio={onIrAInicio ?? onVolver}
-        onIrAVehiculo={onIrAVehiculo}
-        onIrADocumentos={() => {}}
-        onIrASalasChofer={onIrASalasChofer}
-        onIrAProgramados={onIrAProgramados}
-        onIrAProgramadosChofer={onIrAProgramadosChofer}
-        onCerrarSesion={onCerrarSesion}
-      />
     </SafeAreaView>
   );
 }
