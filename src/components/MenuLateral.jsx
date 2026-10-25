@@ -15,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Avatar from './Avatar';
 
 const VERDE = '#0F5132';
 const CREMA = '#FAF7EE';
@@ -99,9 +100,14 @@ export default function MenuLateral({
 
             {/* Usuario */}
             <View style={styles.usuario}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarTexto}>{inicial}</Text>
-              </View>
+              <Avatar
+                uri={perfil?.foto_url}
+                nombre={nombre}
+                tamano={64}
+                colorFondo={VERDE}
+                colorTexto="#FFFFFF"
+                style={{ marginRight: 14 }}
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.nombre} numberOfLines={1}>{nombre}</Text>
                 <Text style={styles.email} numberOfLines={1}>{perfil?.email || ''}</Text>
