@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback,useRef} from 'react';
+import { AppState } from 'react-native';
+import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
+import useUbicacionesSala from './useUbicacionesSala';
 import { nombreDeLugar } from '../../lib/geocoding';
 
 
@@ -130,6 +133,62 @@ export function usePedirViaje() {
     const id = setInterval(refrescar, INTERVALO_MS);
     return () => clearInterval(id);
   }, [hayViaje, refrescar]);
+
+    // Compartir ubicación solo con chofer asignado y mientras no me haya bajado
+  const seguirViaje =
+    hayViaje &&
+    (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso') &&
+    !viaje.mi_destino?.bajo;
+
+  // Posición del chofer, leída cada 4 s
+  const { chofer: choferEnVivo } = useUbicacionesSala(
+    seguirViaje ? viaje.sala_id : null,
+    seguirViaje
+  );
+
+  // Mi ping al servidor cada 6 s (solo con la app abierta)
+  useEffect(() => {
+    if (!seguirViaje) return;
+    let cancelado = false;
+
+        const enviar = async () => {
+      if (AppState.currentState !== 'active') {
+        console.log('PING_PAS saltado: app no activa');
+        return;
+      }
+      try {
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }),
+          new Promise((_, rechazar) =>
+            setTimeout(() => rechazar(new Error('timeout GPS')), 8000)
+          ),
+        ]);
+        if (cancelado) return;
+        const { data, error } = await supabase.rpc('pasajero_ping', {
+          p_lat: pos.coords.latitude,
+          p_lng: pos.coords.longitude,
+        });
+        console.log('PING_PAS resultado:', data, error?.message ?? 'sin error');
+      } catch (e) {
+        console.log('PING_PAS fallo:', e?.message);
+      }
+    };
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      console.log('PING_PAS permiso:', status);
+      if (cancelado || status !== 'granted') return;
+      enviar();
+    })();
+
+    const id = setInterval(enviar, 6000);
+    return () => {
+      cancelado = true;
+      clearInterval(id);
+    };
+  }, [seguirViaje]);
 
   // El destino del viaje: el que acaba de elegir, o el que devuelve mi_viaje_activo
   const destinoViaje = destino ?? viaje?.mi_destino ?? null;
@@ -339,5 +398,6 @@ const elegirSugerencia = async (s) => {
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
+    choferEnVivo,
   };
 }

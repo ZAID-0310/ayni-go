@@ -12,6 +12,7 @@ import {
 import Mapbox from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
+import useUbicacionesSala from '../../hooks/useUbicacionesSala';
 import styles, { colors } from './SalasChoferScreen.styles';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
@@ -73,7 +74,7 @@ function PuntoEstado({ color, pulsar }) {
 }
 
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
-function MapaChofer({ origen, ruta, paradas, actual }) {
+function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [] }) {
   const camara = useRef(null);
 
   const linea = useMemo(() => {
@@ -179,6 +180,33 @@ function MapaChofer({ origen, ruta, paradas, actual }) {
             }}
           />
         </Mapbox.ShapeSource>
+              {pasajeros.length > 0 ? (
+          <Mapbox.ShapeSource
+            id="pasajerosEnVivo"
+            shape={{
+              type: 'FeatureCollection',
+              features: pasajeros.map((p) => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+                properties: { id: String(p.pasajero_id) },
+              })),
+            }}
+          >
+            <Mapbox.CircleLayer
+              id="pasajerosHalo"
+              style={{ circleRadius: 18, circleColor: '#2563EB', circleOpacity: 0.2 }}
+            />
+            <Mapbox.CircleLayer
+              id="pasajerosPunto"
+              style={{
+                circleRadius: 8,
+                circleColor: '#2563EB',
+                circleStrokeColor: '#FFFFFF',
+                circleStrokeWidth: 3,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
       </Mapbox.MapView>
     </View>
   );
@@ -208,9 +236,18 @@ export default function SalasChoferScreen({ onVolver }) {
     cerrarResumen,
   } = useSalasChofer();
 
+    const hayViajeActivo =
+    viaje?.estado === 'abierta_con_chofer' || viaje?.estado === 'en_curso';
+  const { pasajeros: pasajerosEnVivo } = useUbicacionesSala(
+    
+    viaje?.sala_id ?? viaje?.id ?? null,
+    hayViajeActivo
+  );
+  
+
   const cerrarYVolver = () => {
     cerrarResumen();
-    onVolver();
+    onVolver?.();
   };
 
   if (cargandoInicial) {
@@ -372,6 +409,7 @@ export default function SalasChoferScreen({ onVolver }) {
               ruta={viaje.ruta}
               paradas={paradas}
               actual={enCurso ? actual : null}
+              pasajeros={pasajerosEnVivo ?? []}
             />
           ) : null}
 

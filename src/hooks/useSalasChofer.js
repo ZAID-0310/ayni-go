@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
+import {
+  iniciarUbicacionSegundoPlano,
+  detenerUbicacionSegundoPlano,
+} from '../tasks/ubicacionSegundoPlano';
 
 const INTERVALO_MS = 2000;
 const PING_MS = 6000;
@@ -24,7 +28,11 @@ export function useSalasChofer() {
   const [ahora, setAhora] = useState(Date.now());
   const [permisoUbicacion, setPermisoUbicacion] = useState('pendiente'); // pendiente | concedido | denegado
   const [errorUbicacion, setErrorUbicacion] = useState(null);
-  const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
+    const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
+  // pendiente | segundo_plano | solo_primer_plano | denegado
+  const [modoUbicacion, setModoUbicacion] = useState('pendiente');
+  // true cuando la tarea de segundo plano ya envía el ping (el ping normal se salta)
+  const segundoPlanoRef = useRef(false);
   const refrescar = useCallback(async () => {
     const { data: v, error: e1 } = await supabase.rpc('mi_viaje_activo');
     if (e1) {
@@ -73,6 +81,7 @@ export function useSalasChofer() {
     let id = null;
 
     const enviarPing = async () => {
+      if (segundoPlanoRef.current) return; // la tarea ya está enviando
       try {
         let coords = null;
         try {
@@ -127,6 +136,32 @@ export function useSalasChofer() {
       if (id) clearInterval(id);
     };
   }, [refrescar]);
+
+    // Segundo plano: solo con una sala aceptada (abierta o en curso)
+  const hayViajeActivo =
+    !!viaje && (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso');
+
+  useEffect(() => {
+    if (cargandoInicial) return undefined;
+    let cancelado = false;
+
+    if (hayViajeActivo) {
+      iniciarUbicacionSegundoPlano().then((modo) => {
+        if (cancelado) return;
+        console.log('UBICACION modo', modo);
+        segundoPlanoRef.current = modo === 'segundo_plano';
+        setModoUbicacion(modo);
+      });
+    } else {
+      segundoPlanoRef.current = false;
+      setModoUbicacion('pendiente');
+      detenerUbicacionSegundoPlano();
+    }
+
+    return () => {
+      cancelado = true;
+    };
+  }, [hayViajeActivo, cargandoInicial]);
 
   // Reloj de 1 s solo mientras hay ventana de reclutamiento
   const hasta = viaje?.reclutamiento_hasta ?? null;
@@ -223,6 +258,7 @@ export function useSalasChofer() {
     procesando,
     permisoUbicacion,
     errorUbicacion,
+    modoUbicacion,
     aceptarSala,
     rechazarSala,
     aprobarCandidato,

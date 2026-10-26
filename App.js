@@ -17,6 +17,7 @@ import HistorialScreen from './src/screens/Historial';
 import CuentaScreen from './src/screens/Cuenta';
 import RecuperarClaveScreen from './src/screens/RecuperarClave';
 import BarraInferior from './src/components/BarraInferior';
+import { detenerUbicacionSegundoPlano } from './src/tasks/ubicacionSegundoPlano';
 
 const TABS_PASAJERO = [
   { id: 'inicio', label: 'Inicio', icono: 'home' },
@@ -109,6 +110,7 @@ function AppContenido() {
 
 
   const manejarCerrarSesion = () => {
+    detenerUbicacionSegundoPlano();
     setPerfil(null);
     setRolElegido(null);
     setPantalla('bienvenida');
