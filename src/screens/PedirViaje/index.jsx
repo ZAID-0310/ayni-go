@@ -42,7 +42,7 @@ function Marcador({ icono, estiloPunto }) {
   );
 }
 
-function MapaRuta({ origen, destino, ruta, chofer, style }) {
+function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
   const camara = useRef(null);
 
    // Clave estable: solo cambia si cambian los puntos o la ruta de verdad,
@@ -117,6 +117,31 @@ function MapaRuta({ origen, destino, ruta, chofer, style }) {
             style={{
               circleRadius: 8,
               circleColor: VERDE,
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 3,
+            }}
+          />
+        </Mapbox.ShapeSource>
+      ) : null}
+
+            {miUbicacion ? (
+        <Mapbox.ShapeSource
+          id="miPosicionPasajero"
+          shape={{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [miUbicacion.lng, miUbicacion.lat] },
+            properties: {},
+          }}
+        >
+          <Mapbox.CircleLayer
+            id="miHaloPasajero"
+            style={{ circleRadius: 18, circleColor: '#2563EB', circleOpacity: 0.2 }}
+          />
+          <Mapbox.CircleLayer
+            id="miPuntoPasajero"
+            style={{
+              circleRadius: 8,
+              circleColor: '#2563EB',
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: 3,
             }}
@@ -279,6 +304,7 @@ export default function PedirViajeScreen({
     avisoCancelado,
     cerrarAviso,
       choferEnVivo,
+      miUbicacion,
   } = usePedirViaje();
 
   const insets = useSafeAreaInsets();
@@ -346,6 +372,7 @@ export default function PedirViajeScreen({
             origen={origen}
             destino={destinoViaje}
             chofer={choferEnVivo}
+            miUbicacion={miUbicacion}
             ruta={ruta}
           />
         ) : (

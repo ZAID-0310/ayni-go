@@ -74,7 +74,7 @@ function PuntoEstado({ color, pulsar }) {
 }
 
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
-function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [] }) {
+function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null }) {
   const camara = useRef(null);
 
   const linea = useMemo(() => {
@@ -180,7 +180,32 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [] }) {
             }}
           />
         </Mapbox.ShapeSource>
-              {pasajeros.length > 0 ? (
+              {miUbicacion ? (
+          <Mapbox.ShapeSource
+            id="miPosicion"
+            shape={{
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [miUbicacion.lng, miUbicacion.lat] },
+              properties: {},
+            }}
+          >
+            <Mapbox.CircleLayer
+              id="miHalo"
+              style={{ circleRadius: 18, circleColor: colors.verde, circleOpacity: 0.2 }}
+            />
+            <Mapbox.CircleLayer
+              id="miPunto"
+              style={{
+                circleRadius: 8,
+                circleColor: colors.verde,
+                circleStrokeColor: '#FFFFFF',
+                circleStrokeWidth: 3,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
+
+        {pasajeros.length > 0 ? (
           <Mapbox.ShapeSource
             id="pasajerosEnVivo"
             shape={{
@@ -225,6 +250,7 @@ export default function SalasChoferScreen({ onVolver }) {
     procesando,
     permisoUbicacion,
     errorUbicacion,
+    miUbicacion,
     aceptarSala,
     rechazarSala,
     aprobarCandidato,
@@ -410,6 +436,7 @@ export default function SalasChoferScreen({ onVolver }) {
               paradas={paradas}
               actual={enCurso ? actual : null}
               pasajeros={pasajerosEnVivo ?? []}
+              miUbicacion={miUbicacion}
             />
           ) : null}
 

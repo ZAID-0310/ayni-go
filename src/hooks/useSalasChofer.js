@@ -27,7 +27,8 @@ export function useSalasChofer() {
   const [procesando, setProcesando] = useState(false);
   const [ahora, setAhora] = useState(Date.now());
   const [permisoUbicacion, setPermisoUbicacion] = useState('pendiente'); // pendiente | concedido | denegado
-  const [errorUbicacion, setErrorUbicacion] = useState(null);
+    const [errorUbicacion, setErrorUbicacion] = useState(null);
+  const [miUbicacion, setMiUbicacion] = useState(null); // {lat, lng} del propio chofer
     const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
   // pendiente | segundo_plano | solo_primer_plano | denegado
   const [modoUbicacion, setModoUbicacion] = useState('pendiente');
@@ -104,6 +105,7 @@ export function useSalasChofer() {
         if (!coords) throw new Error('Activa la ubicación del dispositivo');
 
         console.log('PING coords', coords.latitude, coords.longitude);
+        if (activo) setMiUbicacion({ lat: coords.latitude, lng: coords.longitude });
         const { error } = await supabase.rpc('chofer_ping', {
           p_lat: coords.latitude,
           p_lng: coords.longitude,
@@ -259,6 +261,7 @@ export function useSalasChofer() {
     permisoUbicacion,
     errorUbicacion,
     modoUbicacion,
+    miUbicacion,
     aceptarSala,
     rechazarSala,
     aprobarCandidato,

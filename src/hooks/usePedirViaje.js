@@ -33,6 +33,7 @@ export function usePedirViaje() {
   // Resumen final del viaje y aviso de cancelación
   const [resumen, setResumen] = useState(null);
   const [avisoCancelado, setAvisoCancelado] = useState(false);
+  const [miUbicacion, setMiUbicacion] = useState(null); // {lat, lng} del propio pasajero
   const [cargando, setCargando] = useState(false);
   const [cargandoInicial, setCargandoInicial] = useState(true);
   // Mensaje de error visible en la pantalla (en vez de Alert nativo)
@@ -166,6 +167,7 @@ export function usePedirViaje() {
           ),
         ]);
         if (cancelado) return;
+        setMiUbicacion({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         const { data, error } = await supabase.rpc('pasajero_ping', {
           p_lat: pos.coords.latitude,
           p_lng: pos.coords.longitude,
@@ -184,9 +186,10 @@ export function usePedirViaje() {
     })();
 
     const id = setInterval(enviar, 6000);
-    return () => {
+        return () => {
       cancelado = true;
       clearInterval(id);
+      setMiUbicacion(null);
     };
   }, [seguirViaje]);
 
@@ -399,5 +402,6 @@ const elegirSugerencia = async (s) => {
     avisoCancelado,
     cerrarAviso,
     choferEnVivo,
+    miUbicacion,
   };
 }
