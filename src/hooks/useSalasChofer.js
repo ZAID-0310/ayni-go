@@ -81,7 +81,7 @@ export function useSalasChofer() {
     let id = null;
 
     const enviarPing = async () => {
-      if (segundoPlanoRef.current) return; // la tarea ya está enviando
+            // Se envía siempre: el ping normal respalda a la tarea de segundo plano
       try {
         let coords = null;
         try {
