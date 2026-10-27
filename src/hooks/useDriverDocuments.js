@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../../lib/supabase';
+import { Alerta } from '../components/Alerta';
 
 const TIPOS = [
   { key: 'dni', label: 'DNI' },
@@ -19,14 +19,14 @@ export function useDriverDocuments(usuario) {
     cargarDocumentos();
   }, []);
 
-    const cargarDocumentos = async () => {
+  const cargarDocumentos = async () => {
     const { data, error } = await supabase
       .from('documentos_chofer')
       .select('*')
       .eq('chofer_id', usuario.id);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      Alerta.mostrar('Error', error.message, undefined, { tipo: 'error' });
     } else {
       const mapa = {};
       data.forEach((doc) => {
@@ -38,54 +38,57 @@ export function useDriverDocuments(usuario) {
   };
 
   const subirDocumento = async (tipo) => {
-        const resultado = await DocumentPicker.getDocumentAsync({
-            type: ['image/*', 'application/pdf'],
-            copyToCacheDirectory: true,
-        });
+    const resultado = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'application/pdf'],
+      copyToCacheDirectory: true,
+    });
 
-        if (resultado.canceled) return;
+    if (resultado.canceled) return;
 
-        setSubiendo(tipo);
+    setSubiendo(tipo);
 
-        const archivo = resultado.assets[0];
-        const extension = archivo.name.split('.').pop();
-        const nombreArchivo = `${usuario.id}/${tipo}.${extension}`;
+    const archivo = resultado.assets[0];
+    const extension = archivo.name.split('.').pop();
+    const nombreArchivo = `${usuario.id}/${tipo}.${extension}`;
 
-        const respuesta = await fetch(archivo.uri);
-        const blob = await respuesta.blob();
+    const respuesta = await fetch(archivo.uri);
+    const blob = await respuesta.blob();
 
-        const { error: errorUpload } = await supabase.storage
-            .from('documentos-choferes')
-            .upload(nombreArchivo, blob, {
-            upsert: true,
-            contentType: archivo.mimeType,
-            });
+    const { error: errorUpload } = await supabase.storage
+      .from('documentos-choferes')
+      .upload(nombreArchivo, blob, {
+        upsert: true,
+        contentType: archivo.mimeType,
+      });
 
-        if (errorUpload) {
-            setSubiendo(null);
-            Alert.alert('Error subiendo archivo', errorUpload.message);
-            return;
-        }
+    if (errorUpload) {
+      setSubiendo(null);
+      Alerta.mostrar('Error subiendo archivo', errorUpload.message, undefined, { tipo: 'error' });
+      return;
+    }
 
-        const { error: errorInsert } = await supabase
-            .from('documentos_chofer')
-            .upsert({
-            chofer_id: usuario.id,
-            tipo,
-            archivo_path: nombreArchivo,
-            estado: 'pendiente',
-            }, { onConflict: 'chofer_id,tipo' });
+    const { error: errorInsert } = await supabase
+      .from('documentos_chofer')
+      .upsert(
+        {
+          chofer_id: usuario.id,
+          tipo,
+          archivo_path: nombreArchivo,
+          estado: 'pendiente',
+        },
+        { onConflict: 'chofer_id,tipo' }
+      );
 
-        setSubiendo(null);
+    setSubiendo(null);
 
-        if (errorInsert) {
-            Alert.alert('Error guardando registro', errorInsert.message);
-            return;
-        }
+    if (errorInsert) {
+      Alerta.mostrar('Error guardando registro', errorInsert.message, undefined, { tipo: 'error' });
+      return;
+    }
 
-        Alert.alert('Listo', 'Documento subido, quedará en revisión.');
-        cargarDocumentos();
-    };
+    Alerta.mostrar('Listo', 'Documento subido, quedará en revisión.', undefined, { tipo: 'exito' });
+    cargarDocumentos();
+  };
 
   return {
     TIPOS,

@@ -17,6 +17,7 @@ import HistorialScreen from './src/screens/Historial';
 import CuentaScreen from './src/screens/Cuenta';
 import RecuperarClaveScreen from './src/screens/RecuperarClave';
 import BarraInferior from './src/components/BarraInferior';
+import { AlertaProvider } from './src/components/Alerta';
 import { detenerUbicacionSegundoPlano } from './src/tasks/ubicacionSegundoPlano';
 
 const TABS_PASAJERO = [
@@ -44,13 +45,14 @@ const TAB_DE_PANTALLA = {
 // Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
 Appearance.setColorScheme('light');
 
-
 export default function App() {
   return (
     <SafeAreaProvider>
-      <Marco>
-        <AppContenido />
-      </Marco>
+      <AlertaProvider>
+        <Marco>
+          <AppContenido />
+        </Marco>
+      </AlertaProvider>
     </SafeAreaProvider>
   );
 }
@@ -88,7 +90,7 @@ function AppContenido() {
     setPantalla('home');
   };
 
-    const esChofer = perfil?.rol === 'chofer';
+  const esChofer = perfil?.rol === 'chofer';
 
   const irATab = (id) => {
     if (id === 'inicio') setPantalla('home');
@@ -107,7 +109,6 @@ function AppContenido() {
       />
     </View>
   );
-
 
   const manejarCerrarSesion = () => {
     detenerUbicacionSegundoPlano();
@@ -138,12 +139,12 @@ function AppContenido() {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
-    if (pantalla === 'pedirViaje') {
+  if (pantalla === 'pedirViaje') {
     return <PedirViajeScreen onVolver={() => setPantalla('home')} />;
   }
 
   if (pantalla === 'programados') {
-        return conBarra(
+    return conBarra(
       <ProgramadosScreen
         onVolver={() => setPantalla('home')}
         onIrAlViaje={() => setPantalla('pedirViaje')}
@@ -153,7 +154,7 @@ function AppContenido() {
   }
 
   if (pantalla === 'programadosChofer') {
-        return conBarra(
+    return conBarra(
       <ProgramadosChoferScreen
         onVolver={() => setPantalla('home')}
         onIrAlViaje={() => setPantalla('salasChofer')}
@@ -161,7 +162,7 @@ function AppContenido() {
     );
   }
 
-    if (pantalla === 'historial') {
+  if (pantalla === 'historial') {
     return conBarra(<HistorialScreen onVolver={() => setPantalla('home')} />);
   }
 
@@ -174,7 +175,7 @@ function AppContenido() {
     );
   }
 
-    if (pantalla === 'cuenta') {
+  if (pantalla === 'cuenta') {
     return conBarra(
       <CuentaScreen
         perfil={perfil}
@@ -212,7 +213,7 @@ function AppContenido() {
     );
   }
 
-    if (pantalla === 'recuperar') {
+  if (pantalla === 'recuperar') {
     return (
       <RecuperarClaveScreen
         onVolver={() => setPantalla('login')}
