@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   Image,
   SafeAreaView,
   KeyboardAvoidingView,
@@ -12,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLogin } from '../../hooks/useLogin';
@@ -20,7 +20,7 @@ import { styles } from './LoginScreen.styles';
 const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 const GREEN = '#0F5132';
 
-export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolver }) {
+export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onIrARecuperar, onVolver }) {
   const {
     email,
     setEmail,
@@ -31,7 +31,32 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
   } = useLogin({ rol, onLoginExitoso });
 
   const [verPassword, setVerPassword] = useState(false);
+  
+  // Estado para controlar tu modal moderno
+  const [modalInfo, setModalInfo] = useState({ 
+    visible: false, 
+    titulo: '', 
+    mensaje: '', 
+    tipo: 'error' 
+  });
+
   const esChofer = rol === 'chofer';
+
+  // Función interceptora para validar antes de llamar al hook si es necesario, 
+  // o puedes mostrar tu modal personalizado aquí mismo:
+  const handleLoginPress = () => {
+    if (!email || !password) {
+      setModalInfo({
+        visible: true,
+        titulo: 'Faltan datos',
+        mensaje: 'Por favor ingresa tu correo y contraseña para continuar.',
+        tipo: 'error',
+      });
+      return;
+    }
+    // Si pasa la validación, ejecutamos el login del hook
+    iniciarSesion();
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -39,7 +64,7 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* Decoración inferior (detrás del contenido) */}
+        {/* Decoración inferior */}
         <View style={styles.bottomDecorationContainer} pointerEvents="none">
           <View style={styles.hillBack} />
           <View style={styles.hillFront} />
@@ -117,19 +142,23 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
 
             <TouchableOpacity
               style={styles.forgotWrapper}
-              onPress={() => Alert.alert('Recuperar contraseña', 'Función en desarrollo')}
+              onPress={onIrARecuperar}
             >
               <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
 
+            {/* BOTÓN PRINCIPAL */}
             <TouchableOpacity
-              style={styles.btnPrimary}
-              onPress={iniciarSesion}
-              activeOpacity={0.8}
+              style={[styles.btnPrimary, loading && styles.btnPrimaryLoading]}
+              onPress={handleLoginPress} // <-- Usamos nuestra función con validación de modal
+              activeOpacity={0.85}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.btnPrimaryTextLoading}>Iniciando sesión...</Text>
+                </View>
               ) : (
                 <Text style={styles.btnPrimaryText}>Iniciar sesión</Text>
               )}
@@ -151,6 +180,35 @@ export default function LoginScreen({ rol, onLoginExitoso, onIrARegistro, onVolv
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* --- MODAL MODERNO PERSONALIZADO --- */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalInfo.visible}
+        onRequestClose={() => setModalInfo({ ...modalInfo, visible: false })}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons 
+                name={modalInfo.tipo === 'error' ? 'alert-circle' : 'checkmark-circle'} 
+                size={48} 
+                color={modalInfo.tipo === 'error' ? '#D9534F' : GREEN} 
+              />
+            </View>
+            <Text style={styles.modalTitle}>{modalInfo.titulo}</Text>
+            <Text style={styles.modalMessage}>{modalInfo.mensaje}</Text>
+            
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setModalInfo({ ...modalInfo, visible: false })}
+            >
+              <Text style={styles.modalButtonText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

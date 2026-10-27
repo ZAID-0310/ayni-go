@@ -52,7 +52,7 @@ export const styles = StyleSheet.create({
     backgroundColor: GREEN_SOFTER,
   },
 
-  // Logo y eslogan (el paddingTop se suma en el JSX)
+  // Logo (el paddingTop se suma en el JSX)
   header: { alignItems: 'center', flexShrink: 0 },
   logo: { width: 240, height: 140 },
   slogan: {
@@ -82,16 +82,60 @@ export const styles = StyleSheet.create({
     fontSize: 15, color: GREEN, opacity: 0.8,
     textAlign: 'center', marginBottom: 16,
   },
-  btnPrimary: {
-    backgroundColor: GREEN, borderRadius: 999,
-    paddingVertical: 15, alignItems: 'center', marginBottom: 12,
+
+  // Botones con estado activo / inactivo
+  btnBase: {
+    borderRadius: 999,
+    paddingVertical: 15,
+    minHeight: 66,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: GREEN,
   },
-  btnPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  btnHintLight: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 3 },
-  btnSecondary: {
-    borderWidth: 1.5, borderColor: GREEN, backgroundColor: 'transparent',
-    borderRadius: 999, paddingVertical: 15, alignItems: 'center',
+  btnActivo: { backgroundColor: GREEN },
+  btnInactivo: { backgroundColor: 'transparent' },
+  btnTexto: { fontSize: 16, fontWeight: '700' },
+  textoActivo: { color: '#FFFFFF' },
+  textoInactivo: { color: GREEN },
+  hintActivo: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 3 },
+  hintInactivo: { color: GREEN, opacity: 0.7, fontSize: 12, marginTop: 3 },
+
+
+  // Animación de progreso dentro del botón
+  relleno: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  btnSecondaryText: { color: GREEN, fontSize: 16, fontWeight: '700' },
-  btnHintDark: { color: GREEN, opacity: 0.7, fontSize: 12, marginTop: 3 },
+  capaCentro: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textoCarga: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  perilla: {
+    position: 'absolute',
+    left: 0,
+    top: 9,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
 });

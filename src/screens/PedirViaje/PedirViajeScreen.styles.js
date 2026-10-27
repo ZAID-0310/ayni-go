@@ -1,16 +1,20 @@
 import { StyleSheet } from 'react-native';
 
+const VERDE = '#0F5132';
+const CREMA = '#FAF7EE';
+const VERDE_SUAVE = '#DCEBDD';
+
 export default StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
   },
   centrado: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
   },
   scrollContent: {
     padding: 24,
@@ -24,13 +28,13 @@ export default StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: '#F7C942',
+    backgroundColor: VERDE_SUAVE,
     zIndex: 0,
   },
   contenedorMapa: {
     flex: 1,
     position: 'relative',
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
   },
   mapa: {
     flex: 1,
@@ -44,7 +48,7 @@ export default StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 50,
@@ -113,7 +117,7 @@ export default StyleSheet.create({
     marginBottom: 12,
   },
   estadoBadge: {
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -169,7 +173,7 @@ export default StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
     borderWidth: 3,
     borderColor: '#fff',
   },
@@ -209,7 +213,7 @@ export default StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F5132',
+    backgroundColor: VERDE,
     borderRadius: 999,
     paddingVertical: 16,
     elevation: 5,
@@ -321,7 +325,7 @@ export default StyleSheet.create({
   },
   btnSecondarySimple: {
     marginTop: 16,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: VERDE,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
@@ -356,13 +360,13 @@ export default StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
   },
 
   // ---- Pantalla "Tu viaje" ----
   viajeContenedor: {
     flex: 1,
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
   },
   mapaViajeFull: {
     flex: 1,
@@ -446,7 +450,7 @@ export default StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#FDE9D3',
+    backgroundColor: VERDE_SUAVE,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -497,8 +501,8 @@ export default StyleSheet.create({
     justifyContent: 'center',
   },
   asientoLleno: {
-    backgroundColor: '#F58220',
-    borderColor: '#F58220',
+    backgroundColor: VERDE,
+    borderColor: VERDE,
     borderStyle: 'solid',
   },
   asientoTexto: {
@@ -521,14 +525,16 @@ export default StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-    topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 40 },
+
+  // ---- Cabecera + tarjeta de ruta (pantalla de inicio) ----
+  topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 40 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 8,
-    backgroundColor: '#FAF7EE',
+    backgroundColor: CREMA,
   },
   logoHeader: { width: 130, height: 44 },
   rutaCard: {
@@ -549,7 +555,7 @@ export default StyleSheet.create({
   rutaSeparador: { height: 1, backgroundColor: '#EEEEEE' },
   puntoOrigen: {
     width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#0F5132', marginRight: 12,
+    backgroundColor: VERDE, marginRight: 12,
   },
   puntoDestino: {
     width: 12, height: 12, borderRadius: 6,
@@ -572,4 +578,75 @@ export default StyleSheet.create({
     elevation: 4,
   },
   botonIcono: { marginRight: 10 },
+
+  // ---- Resumen / cancelado ----
+  pantalla: {
+    flex: 1,
+    backgroundColor: CREMA,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  tarjetaResumen: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E3E0D5',
+    elevation: 4,
+  },
+  tituloResumen: { fontSize: 24, fontWeight: '800', color: VERDE, marginBottom: 6 },
+  subtitulo: { fontSize: 14, color: '#666', marginBottom: 18 },
+  etiqueta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#888',
+    letterSpacing: 0.6,
+    marginTop: 8,
+  },
+  destinoResumen: { fontSize: 16, fontWeight: '700', color: '#1A1A1A', marginTop: 2 },
+  montoGrande: { fontSize: 34, fontWeight: '800', color: VERDE, marginTop: 2 },
+  estadoPago: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  estadoPagoTexto: { fontSize: 13, fontWeight: '700' },
+  botonResumen: {
+    backgroundColor: VERDE,
+    borderRadius: 999,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  botonResumenTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+  // ---- Precio en viaje activo ----
+  precioBloque: {
+    backgroundColor: '#F4F8F3',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: VERDE_SUAVE,
+    padding: 14,
+    marginBottom: 18,
+  },
+  precioFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  precioMonto: { fontSize: 26, fontWeight: '800', color: VERDE, marginTop: 2 },
+  precioNota: { fontSize: 12, color: '#666', marginTop: 4 },
+  paradaChip: {
+    backgroundColor: VERDE,
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  paradaChipTexto: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  pagoPildora: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  pagoPildoraTexto: { fontSize: 13, fontWeight: '700' },
 });

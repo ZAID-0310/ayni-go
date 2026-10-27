@@ -1,28 +1,50 @@
-import { StyleSheet, Platform, StatusBar } from 'react-native';
+import { StyleSheet } from 'react-native';
+
+const VERDE = '#0F5132';
+const CREMA = '#FAF7EE';
+const VERDE_SUAVE = '#DCEBDD';
+const BORDE = '#E3E0D5';
+
 export const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-    header: {
+  safeArea: { flex: 1, backgroundColor: CREMA },
+
+  header: {
     paddingHorizontal: 20,
-    paddingTop: 12 + (Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0),
+    paddingTop: 8,
     paddingBottom: 8,
   },
-  btnVolver: { paddingVertical: 10, paddingRight: 20 },
-  btnVolverText: { fontSize: 16, color: '#F58220', fontWeight: '600' },
-  titulo: { fontSize: 24, fontWeight: '700', color: '#222', marginTop: 4 },
-  scroll: { padding: 20, paddingBottom: 40 },
-  cargando: { marginTop: 24 },
-  seccion: { fontSize: 16, fontWeight: '700', color: '#222', marginTop: 18 },
-  vacio: { color: '#777', marginTop: 10, fontSize: 14 },
-  textoError: { color: '#C62828', marginTop: 10, fontSize: 13 },
+  btnVolver: { paddingVertical: 10, paddingRight: 20, alignSelf: 'flex-start' },
+  btnVolverText: { fontSize: 16, color: VERDE, fontWeight: '600' },
+  titulo: { fontSize: 24, fontWeight: '800', color: VERDE, marginTop: 4 },
 
-  card: { backgroundColor: '#F7F7F7', borderRadius: 14, padding: 16, marginTop: 12 },
-  hora: { fontSize: 15, fontWeight: '700', color: '#222' },
-  direccion: { fontSize: 14, color: '#444', marginTop: 6 },
+  scroll: { padding: 20, paddingBottom: 32 },
+  cargando: { marginTop: 24 },
+  seccion: { fontSize: 16, fontWeight: '700', color: '#1A1A1A', marginTop: 18 },
+  vacio: { color: '#666', marginTop: 10, fontSize: 14 },
+  textoError: { color: '#DC2626', marginTop: 10, fontSize: 13 },
+
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDE,
+    padding: 16,
+    marginTop: 12,
+  },
+  pastilla: {
+    alignSelf: 'flex-start',
+    backgroundColor: VERDE_SUAVE,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  pastillaTexto: { fontSize: 14, fontWeight: '700', color: VERDE },
+  direccion: { fontSize: 15, fontWeight: '600', color: '#1A1A1A', marginTop: 10 },
   sub: { fontSize: 13, color: '#666', marginTop: 4 },
 
   acciones: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
   btnPrincipal: {
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -30,10 +52,10 @@ export const styles = StyleSheet.create({
     marginTop: 6,
     alignItems: 'center',
   },
-  btnPrincipalText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  btnPrincipalText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
   btnOutline: {
     borderWidth: 1.5,
-    borderColor: '#F58220',
+    borderColor: VERDE,
     borderRadius: 10,
     paddingVertical: 9,
     paddingHorizontal: 16,
@@ -41,5 +63,6 @@ export const styles = StyleSheet.create({
     marginTop: 6,
     alignItems: 'center',
   },
-  btnOutlineText: { color: '#F58220', fontWeight: '700', fontSize: 15 },
+  btnOutlineText: { color: VERDE, fontWeight: '700', fontSize: 15 },
+  btnDeshabilitado: { opacity: 0.5 },
 });

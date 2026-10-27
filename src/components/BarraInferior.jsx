@@ -4,17 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 const VERDE = '#0F5132';
 
-const TABS = [
+const TABS_PASAJERO = [
   { id: 'inicio', label: 'Inicio', icono: 'home' },
   { id: 'viajes', label: 'Viajes', icono: 'car' },
   { id: 'notificaciones', label: 'Notificaciones', icono: 'notifications' },
   { id: 'perfil', label: 'Perfil', icono: 'person' },
 ];
 
-export default function BarraInferior({ activa, onCambiar }) {
+export default function BarraInferior({ activa, onCambiar, tabs = TABS_PASAJERO }) {
   return (
     <View style={styles.barra}>
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const activo = activa === t.id;
         return (
           <TouchableOpacity

@@ -1,9 +1,13 @@
 import { StyleSheet } from 'react-native';
 
+const VERDE = '#0F5132';
+const CREMA = '#FAF7EE';
+const VERDE_SUAVE = '#DCEBDD';
+
 export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FDF8EC',
+    backgroundColor: CREMA,
   },
   container: {
     flex: 1,
@@ -19,10 +23,10 @@ export const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: '#F7C942',
+    backgroundColor: VERDE_SUAVE,
   },
 
-  // Tarjeta de perfil
+  // Tarjeta de perfil (pestaña Perfil del pasajero)
   perfilCard: {
     width: '100%',
     backgroundColor: '#FFFFFF',
@@ -40,7 +44,7 @@ export const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -53,7 +57,7 @@ export const styles = StyleSheet.create({
   saludo: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: VERDE,
     textAlign: 'center',
   },
   email: {
@@ -62,14 +66,14 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
   rolBadge: {
-    backgroundColor: '#FDE9D3',
+    backgroundColor: VERDE_SUAVE,
     paddingHorizontal: 14,
     paddingVertical: 5,
     borderRadius: 20,
     marginTop: 12,
   },
   rolBadgeText: {
-    color: '#D9690B',
+    color: VERDE,
     fontWeight: '700',
     fontSize: 13,
   },
@@ -86,7 +90,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   btnPrincipal: {
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
     paddingVertical: 16,
     borderRadius: 30,
     alignItems: 'center',
@@ -99,13 +103,13 @@ export const styles = StyleSheet.create({
   },
   btnOutline: {
     borderWidth: 2,
-    borderColor: '#1E1E1E',
+    borderColor: VERDE,
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
   },
   btnOutlineText: {
-    color: '#1E1E1E',
+    color: VERDE,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -137,7 +141,7 @@ export const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: '#F7C942',
+    backgroundColor: '#F5B21B',
   },
   bottomOrange: {
     position: 'absolute',
@@ -146,20 +150,157 @@ export const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#F58220',
+    backgroundColor: VERDE,
   },
-    tabVacio: {
+
+  // Pestañas del pasajero
+  tabVacio: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAF7EE',
+    backgroundColor: CREMA,
   },
-  tabVacioTitulo: { fontSize: 22, fontWeight: '800', color: '#0F5132' },
+  tabVacioTitulo: { fontSize: 22, fontWeight: '800', color: VERDE },
   tabVacioTexto: { fontSize: 14, color: '#777', marginTop: 6 },
   tabPerfil: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 28,
-    backgroundColor: '#FAF7EE',
+    backgroundColor: CREMA,
   },
+
+   // ---------- Chofer ----------
+  choferContainer: { flex: 1, backgroundColor: CREMA },
+  choferHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  choferLogo: { width: 140, height: 48 },
+  choferScroll: { padding: 20, paddingBottom: 30 },
+
+  hero: {
+    backgroundColor: VERDE,
+    borderRadius: 26,
+    padding: 20,
+    elevation: 6,
+  },
+  heroFila: { flexDirection: 'row', alignItems: 'center' },
+  heroAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  heroAvatarTexto: { color: '#FFFFFF', fontSize: 24, fontWeight: '800' },
+  heroSaludo: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  heroNombre: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginTop: 1 },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  heroBadgeTexto: { color: '#FFFFFF', fontSize: 12, fontWeight: '600', marginLeft: 4 },
+
+  heroEstado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 18,
+  },
+  heroPunto: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4ADE80',
+    marginRight: 10,
+  },
+  heroPuntoOff: { backgroundColor: '#9CA3AF' },
+  heroEstadoTexto: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  interruptor: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#4ADE80',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: 3,
+  },
+  interruptorOff: { backgroundColor: '#6B7280', alignItems: 'flex-start' },
+  interruptorBola: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
+  interruptorBolaOff: { backgroundColor: '#E5E7EB' },
+
+  btnAceptar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5B21B',
+    borderRadius: 999,
+    paddingVertical: 16,
+    marginTop: 16,
+  },
+  btnAceptarOff: { opacity: 0.45 },
+  btnAceptarTexto: { color: VERDE, fontSize: 17, fontWeight: '800', marginRight: 8 },
+
+  seccion: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: VERDE,
+    marginTop: 26,
+    marginBottom: 12,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  atajo: {
+    width: '47.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E3E0D5',
+    paddingVertical: 20,
+    alignItems: 'center',
+    elevation: 2,
+  },
+  atajoIcono: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: VERDE_SUAVE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  atajoTexto: { fontSize: 14, fontWeight: '600', color: VERDE },
+
+    estadoPildora: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: VERDE_SUAVE,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+  },
+  estadoPildoraOff: { backgroundColor: '#E6E3D8' },
+  estadoPunto: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#16A34A',
+    marginRight: 8,
+  },
+  estadoPuntoOff: { backgroundColor: '#999' },
+  estadoTexto: { fontSize: 14, fontWeight: '700', color: VERDE },
+  estadoTextoOff: { color: '#666' },
 });

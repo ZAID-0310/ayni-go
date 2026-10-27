@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback,useRef} from 'react';
+import { AppState } from 'react-native';
+import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
+import useUbicacionesSala from './useUbicacionesSala';
 import { nombreDeLugar } from '../../lib/geocoding';
 
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
-const INTERVALO_MS = 5000;
-
+const INTERVALO_MS = 2000;
 // Identificador de la sesión de búsqueda (agrupa suggest + retrieve)
 const nuevoToken = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -31,6 +33,7 @@ export function usePedirViaje() {
   // Resumen final del viaje y aviso de cancelación
   const [resumen, setResumen] = useState(null);
   const [avisoCancelado, setAvisoCancelado] = useState(false);
+  const [miUbicacion, setMiUbicacion] = useState(null); // {lat, lng} del propio pasajero
   const [cargando, setCargando] = useState(false);
   const [cargandoInicial, setCargandoInicial] = useState(true);
   // Mensaje de error visible en la pantalla (en vez de Alert nativo)
@@ -131,6 +134,64 @@ export function usePedirViaje() {
     const id = setInterval(refrescar, INTERVALO_MS);
     return () => clearInterval(id);
   }, [hayViaje, refrescar]);
+
+    // Compartir ubicación solo con chofer asignado y mientras no me haya bajado
+  const seguirViaje =
+    hayViaje &&
+    (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso') &&
+    !viaje.mi_destino?.bajo;
+
+  // Posición del chofer, leída cada 4 s
+  const { chofer: choferEnVivo } = useUbicacionesSala(
+    seguirViaje ? viaje.sala_id : null,
+    seguirViaje
+  );
+
+  // Mi ping al servidor cada 6 s (solo con la app abierta)
+  useEffect(() => {
+    if (!seguirViaje) return;
+    let cancelado = false;
+
+        const enviar = async () => {
+      if (AppState.currentState !== 'active') {
+        console.log('PING_PAS saltado: app no activa');
+        return;
+      }
+      try {
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }),
+          new Promise((_, rechazar) =>
+            setTimeout(() => rechazar(new Error('timeout GPS')), 8000)
+          ),
+        ]);
+        if (cancelado) return;
+        setMiUbicacion({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const { data, error } = await supabase.rpc('pasajero_ping', {
+          p_lat: pos.coords.latitude,
+          p_lng: pos.coords.longitude,
+        });
+        console.log('PING_PAS resultado:', data, error?.message ?? 'sin error');
+      } catch (e) {
+        console.log('PING_PAS fallo:', e?.message);
+      }
+    };
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      console.log('PING_PAS permiso:', status);
+      if (cancelado || status !== 'granted') return;
+      enviar();
+    })();
+
+    const id = setInterval(enviar, 6000);
+        return () => {
+      cancelado = true;
+      clearInterval(id);
+      setMiUbicacion(null);
+    };
+  }, [seguirViaje]);
 
   // El destino del viaje: el que acaba de elegir, o el que devuelve mi_viaje_activo
   const destinoViaje = destino ?? viaje?.mi_destino ?? null;
@@ -340,5 +401,7 @@ const elegirSugerencia = async (s) => {
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
+    choferEnVivo,
+    miUbicacion,
   };
 }

@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
@@ -41,8 +42,18 @@ function Marcador({ icono, estiloPunto }) {
   );
 }
 
-function MapaRuta({ origen, destino, ruta, style }) {
+function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
   const camara = useRef(null);
+
+   // Clave estable: solo cambia si cambian los puntos o la ruta de verdad,
+  // no cada vez que el refresco del viaje crea objetos nuevos.
+  const clave = [
+    origen?.lat,
+    origen?.lng,
+    destino?.lat,
+    destino?.lng,
+    ruta?.geometry?.coordinates?.length ?? 0,
+  ].join('|');
 
   useEffect(() => {
     if (!origen || !destino) return;
@@ -58,7 +69,8 @@ function MapaRuta({ origen, destino, ruta, style }) {
       [50, 50, 50, 50],
       600
     );
-  }, [ruta, origen, destino]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
 
   return (
     <Mapbox.MapView style={style}>
@@ -82,6 +94,56 @@ function MapaRuta({ origen, destino, ruta, style }) {
               lineWidth: 5,
               lineCap: 'round',
               lineJoin: 'round',
+            }}
+          />
+        </Mapbox.ShapeSource>
+      ) : null}
+
+            {chofer ? (
+        <Mapbox.ShapeSource
+          id="choferEnVivo"
+          shape={{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [chofer.lng, chofer.lat] },
+            properties: {},
+          }}
+        >
+          <Mapbox.CircleLayer
+            id="choferHalo"
+            style={{ circleRadius: 18, circleColor: VERDE, circleOpacity: 0.2 }}
+          />
+          <Mapbox.CircleLayer
+            id="choferPunto"
+            style={{
+              circleRadius: 8,
+              circleColor: VERDE,
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 3,
+            }}
+          />
+        </Mapbox.ShapeSource>
+      ) : null}
+
+            {miUbicacion ? (
+        <Mapbox.ShapeSource
+          id="miPosicionPasajero"
+          shape={{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [miUbicacion.lng, miUbicacion.lat] },
+            properties: {},
+          }}
+        >
+          <Mapbox.CircleLayer
+            id="miHaloPasajero"
+            style={{ circleRadius: 18, circleColor: '#2563EB', circleOpacity: 0.2 }}
+          />
+          <Mapbox.CircleLayer
+            id="miPuntoPasajero"
+            style={{
+              circleRadius: 8,
+              circleColor: '#2563EB',
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 3,
             }}
           />
         </Mapbox.ShapeSource>
@@ -241,15 +303,31 @@ export default function PedirViajeScreen({
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
+      choferEnVivo,
+      miUbicacion,
   } = usePedirViaje();
 
+  const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
-  const [mapaListo, setMapaListo] = useState(false);
+    const [mapaListo, setMapaListo] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [tecladoAlto, setTecladoAlto] = useState(0);
 
   useEffect(() => {
-    const id = setTimeout(() => setMapaListo(true), 6000);
-    return () => clearTimeout(id);
+    const mostrar = Keyboard.addListener('keyboardDidShow', (e) =>
+      setTecladoAlto(e.endCoordinates.height)
+    );
+    const ocultar = Keyboard.addListener('keyboardDidHide', () =>
+      setTecladoAlto(0)
+    );
+    return () => {
+      mostrar.remove();
+      ocultar.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => setMapaListo(true), 2500);    return () => clearTimeout(id);
   }, []);
 
   if (cargandoInicial) {
@@ -293,6 +371,8 @@ export default function PedirViajeScreen({
             style={styles.mapaViajeFull}
             origen={origen}
             destino={destinoViaje}
+            chofer={choferEnVivo}
+            miUbicacion={miUbicacion}
             ruta={ruta}
           />
         ) : (
@@ -315,7 +395,7 @@ export default function PedirViajeScreen({
 
           <ScrollView
             style={styles.sheetScroll}
-            contentContainerStyle={styles.sheetContenido}
+                        contentContainerStyle={[styles.sheetContenido, { paddingBottom: 28 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
             {/* Estado */}
@@ -542,6 +622,7 @@ export default function PedirViajeScreen({
         <Mapbox.MapView
           style={styles.mapa}
           onPress={manejarToque}
+                    onDidFinishLoadingMap={() => setMapaListo(true)}
           onDidFinishRenderingMapFully={() => setMapaListo(true)}
         >
           <Mapbox.Camera
@@ -550,7 +631,7 @@ export default function PedirViajeScreen({
               centerCoordinate: [origen.lng, origen.lat],
               zoomLevel: 13,
             }}
-            animationDuration={0}
+            animationDuration={0}          
           />
 
           <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
@@ -629,7 +710,15 @@ export default function PedirViajeScreen({
           </View>
 
           {/* Parte de abajo: destino elegido + botón */}
-          <View style={styles.panelInferior}>
+          <View
+            style={[
+              styles.panelInferior,
+              {
+                paddingBottom: 16 + (tecladoAlto > 0 ? 0 : insets.bottom),
+                bottom: tecladoAlto,
+              },
+            ]}
+          >
             {destino || error ? (
               <View style={styles.destinoCard}>
                 {destino ? (

@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
+import {
+  iniciarUbicacionSegundoPlano,
+  detenerUbicacionSegundoPlano,
+} from '../tasks/ubicacionSegundoPlano';
 
-const INTERVALO_MS = 5000;
-const PING_MS = 12000;
+const INTERVALO_MS = 2000;
+const PING_MS = 6000;
 
 const conTimeout = (promesa, ms) =>
   Promise.race([
@@ -23,8 +27,13 @@ export function useSalasChofer() {
   const [procesando, setProcesando] = useState(false);
   const [ahora, setAhora] = useState(Date.now());
   const [permisoUbicacion, setPermisoUbicacion] = useState('pendiente'); // pendiente | concedido | denegado
-  const [errorUbicacion, setErrorUbicacion] = useState(null);
-  const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
+    const [errorUbicacion, setErrorUbicacion] = useState(null);
+  const [miUbicacion, setMiUbicacion] = useState(null); // {lat, lng} del propio chofer
+    const [resumen, setResumen] = useState(null); // resumen del viaje recién finalizado
+  // pendiente | segundo_plano | solo_primer_plano | denegado
+  const [modoUbicacion, setModoUbicacion] = useState('pendiente');
+  // true cuando la tarea de segundo plano ya envía el ping (el ping normal se salta)
+  const segundoPlanoRef = useRef(false);
   const refrescar = useCallback(async () => {
     const { data: v, error: e1 } = await supabase.rpc('mi_viaje_activo');
     if (e1) {
@@ -73,6 +82,7 @@ export function useSalasChofer() {
     let id = null;
 
     const enviarPing = async () => {
+            // Se envía siempre: el ping normal respalda a la tarea de segundo plano
       try {
         let coords = null;
         try {
@@ -95,6 +105,7 @@ export function useSalasChofer() {
         if (!coords) throw new Error('Activa la ubicación del dispositivo');
 
         console.log('PING coords', coords.latitude, coords.longitude);
+        if (activo) setMiUbicacion({ lat: coords.latitude, lng: coords.longitude });
         const { error } = await supabase.rpc('chofer_ping', {
           p_lat: coords.latitude,
           p_lng: coords.longitude,
@@ -127,6 +138,32 @@ export function useSalasChofer() {
       if (id) clearInterval(id);
     };
   }, [refrescar]);
+
+    // Segundo plano: solo con una sala aceptada (abierta o en curso)
+  const hayViajeActivo =
+    !!viaje && (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso');
+
+  useEffect(() => {
+    if (cargandoInicial) return undefined;
+    let cancelado = false;
+
+    if (hayViajeActivo) {
+      iniciarUbicacionSegundoPlano().then((modo) => {
+        if (cancelado) return;
+        console.log('UBICACION modo', modo);
+        segundoPlanoRef.current = modo === 'segundo_plano';
+        setModoUbicacion(modo);
+      });
+    } else {
+      segundoPlanoRef.current = false;
+      setModoUbicacion('pendiente');
+      detenerUbicacionSegundoPlano();
+    }
+
+    return () => {
+      cancelado = true;
+    };
+  }, [hayViajeActivo, cargandoInicial]);
 
   // Reloj de 1 s solo mientras hay ventana de reclutamiento
   const hasta = viaje?.reclutamiento_hasta ?? null;
@@ -223,6 +260,8 @@ export function useSalasChofer() {
     procesando,
     permisoUbicacion,
     errorUbicacion,
+    modoUbicacion,
+    miUbicacion,
     aceptarSala,
     rechazarSala,
     aprobarCandidato,
