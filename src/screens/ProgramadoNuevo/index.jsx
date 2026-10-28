@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useElegirDestino } from '../../hooks/useElegirDestino';
 import { useProgramados, formatearHoraInput, parseHora } from '../../hooks/useProgramados';
 import { styles } from './ProgramadoNuevoScreen.styles';
+import PinInicio from '../../components/PinInicio';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
@@ -131,7 +132,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
           coordinate={[origen.lng, origen.lat]}
           anchor={{ x: 0.5, y: 1 }}
         >
-          <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
+          <PinInicio />
         </Mapbox.PointAnnotation>
 
         {destino ? (

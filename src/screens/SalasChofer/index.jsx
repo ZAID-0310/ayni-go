@@ -13,6 +13,7 @@ import Mapbox from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
+import PinInicio from '../../components/PinInicio';
 import styles, { colors } from './SalasChoferScreen.styles';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
@@ -73,8 +74,79 @@ function PuntoEstado({ color, pulsar }) {
   );
 }
 
+// Un color por tramo (evita azul = pasajeros, dorado/gris = estado de la parada)
+const COLORES_TRAMO = ['#EA580C', '#7C3AED', '#0D9488', '#DB2777'];
+const colorDeOrden = (orden) => COLORES_TRAMO[(Math.max(1, orden) - 1) % COLORES_TRAMO.length];
+
+// Parte la ruta en tramos: origen → parada 1 → parada 2 → ...
+function partirRuta(coordenadas, paradas) {
+  if (!coordenadas?.length || !paradas?.length) return [];
+  const masCercano = (p) => {
+    let mejor = 0;
+    let min = Infinity;
+    coordenadas.forEach(([lng, lat], i) => {
+      const d = (lng - p.lng) ** 2 + (lat - p.lat) ** 2;
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    });
+    return mejor;
+  };
+  const ordenadas = [...paradas].sort((a, b) => a.orden - b.orden);
+  let desde = 0;
+  return ordenadas.map((p, k) => {
+    let hasta = masCercano(p);
+    if (k === ordenadas.length - 1) hasta = coordenadas.length - 1; // la última llega hasta el final
+    if (hasta <= desde) hasta = Math.min(desde + 1, coordenadas.length - 1);
+    const tramo = { orden: p.orden, color: colorDeOrden(p.orden), coordenadas: coordenadas.slice(desde, hasta + 1) };
+    desde = hasta;
+    return tramo;
+  });
+}
+
+// Distancia aproximada en metros entre dos puntos [lng, lat]
+const distM = (a, b) => {
+  const dx = (a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180) * 111320;
+  const dy = (a[1] - b[1]) * 110574;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+// Corta los tramos en la posición del chofer: lo recorrido queda aparte.
+// Solo busca hacia adelante (desdeIdx) y no corta si está a más de toleranciaM de la ruta.
+function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
+  const todas = [];
+  tramos.forEach((t, k) => t.coordenadas.forEach((c, j) => todas.push({ c, k, j })));
+  if (todas.length === 0) return { restantes: tramos, recorrido: null, idx: 0 };
+
+  let idx = Math.min(desdeIdx, todas.length - 1);
+  if (pos) {
+    let mejor = -1;
+    let min = Infinity;
+    for (let i = idx; i < todas.length; i++) {
+      const d = distM(todas[i].c, [pos.lng, pos.lat]);
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    }
+    if (mejor >= 0 && min <= toleranciaM) idx = mejor;
+  }
+  if (idx === 0) return { restantes: tramos, recorrido: null, idx };
+
+  const corte = todas[idx];
+  const restantes = tramos
+    .map((t, k) => {
+      if (k < corte.k) return null;
+      return k === corte.k ? { ...t, coordenadas: t.coordenadas.slice(corte.j) } : t;
+    })
+    .filter((t) => t && t.coordenadas.length >= 2);
+  const recorrido = todas.slice(0, idx + 1).map((x) => x.c);
+  return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
+}
+
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
-function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null }) {
+function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null, estilo }) {
   const camara = useRef(null);
 
   const linea = useMemo(() => {
@@ -84,6 +156,29 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
       return null;
     }
   }, [ruta]);
+
+      // Clave estable: `paradas` llega como arreglo nuevo en cada refresco (2 s)
+  const paradasKey = paradas.map((p) => `${p.orden}:${p.lat}:${p.lng}`).join('|');
+
+  const tramos = useMemo(() => {
+    const t = partirRuta(linea?.coordinates, paradas).filter((x) => x.coordenadas.length >= 2);
+    if (t.length === 0 && linea?.coordinates?.length >= 2) {
+      return [{ orden: 0, color: colors.verde, coordenadas: linea.coordinates }];
+    }
+    return t;
+    }, [linea, paradasKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const avance = useRef(0);
+    const tramosPrevios = useRef(null);
+    const corte = useMemo(() => {
+      if (tramosPrevios.current !== tramos) {
+        tramosPrevios.current = tramos; // ruta nueva: el avance vuelve a empezar
+        avance.current = 0;
+      }
+      const r = recortarTramos(tramos, miUbicacion, avance.current);
+      avance.current = r.idx;
+      return r;
+    }, [tramos, miUbicacion]);
 
   const clave = `${linea?.coordinates?.length ?? 0}-${paradas.length}`;
 
@@ -108,16 +203,34 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
   if (!origen) return null;
 
   return (
-    <View style={styles.mapa}>
+    <View style={[styles.mapa, estilo]}>
       <Mapbox.MapView style={{ flex: 1 }}>
         <Mapbox.Camera
           ref={camara}
           defaultSettings={{ centerCoordinate: [origen.lng, origen.lat], zoomLevel: 12 }}
         />
-        {linea ? (
+        {tramos.length > 0 ? (
           <Mapbox.ShapeSource
             id="rutaChofer"
-            shape={{ type: 'Feature', geometry: linea, properties: {} }}
+            shape={{
+              type: 'FeatureCollection',
+                            features: [
+                ...(corte.recorrido
+                  ? [
+                      {
+                        type: 'Feature',
+                        geometry: { type: 'LineString', coordinates: corte.recorrido },
+                        properties: { color: '#C9C5B8' },
+                      },
+                    ]
+                  : []),
+                ...corte.restantes.map((t) => ({
+                  type: 'Feature',
+                  geometry: { type: 'LineString', coordinates: t.coordenadas },
+                  properties: { color: t.color },
+                })),
+              ],
+            }}
           >
             {/* Borde blanco para que la ruta resalte sobre las calles */}
             <Mapbox.LineLayer
@@ -127,15 +240,17 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
             <Mapbox.LineLayer
               id="rutaChoferLinea"
               aboveLayerID="rutaChoferBorde"
-              style={{ lineColor: colors.verde, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+                style={{ lineColor: ['get', 'color'], lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
             />
           </Mapbox.ShapeSource>
         ) : null}
 
-        <Mapbox.PointAnnotation id="origenChofer" coordinate={[origen.lng, origen.lat]}>
-          <View style={[styles.marca, styles.marcaOrigen]}>
-            <Text style={styles.marcaTexto}>🚏</Text>
-          </View>
+        <Mapbox.PointAnnotation
+          id="origenChofer"
+          coordinate={[origen.lng, origen.lat]}
+          anchor={{ x: 0.5, y: 1 }}
+        >
+          <PinInicio />
         </Mapbox.PointAnnotation>
 
                 <Mapbox.ShapeSource
@@ -151,7 +266,7 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
                   ? colors.gris
                   : actual?.pasajero_id === p.pasajero_id
                     ? colors.dorado
-                    : colors.verdeProfundo,
+                    : colorDeOrden(p.orden),
                 textoColor:
                   !p.bajo && actual?.pasajero_id === p.pasajero_id
                     ? colors.verdeProfundo
@@ -373,6 +488,17 @@ export default function SalasChoferScreen({ onVolver }) {
 
     return (
       <SafeAreaView style={styles.safeArea}>
+                {paradas.length > 0 ? (
+          <MapaChofer
+            origen={viaje.origen}
+            ruta={viaje.ruta}
+            paradas={paradas}
+            actual={enCurso ? actual : null}
+            pasajeros={pasajerosEnVivo ?? []}
+            miUbicacion={miUbicacion}
+                        estilo={{ height: 340, marginTop: 0, marginBottom: 8 }}
+          />
+        ) : null}
         <ScrollView
           style={styles.scroll}
                     contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
@@ -428,17 +554,6 @@ export default function SalasChoferScreen({ onVolver }) {
             <Text style={styles.precioGrande}>{soles(viaje.precio_general)}</Text>
           </View>
 
-          {/* Mapa con ruta y paradas */}
-          {paradas.length > 0 ? (
-            <MapaChofer
-              origen={viaje.origen}
-              ruta={viaje.ruta}
-              paradas={paradas}
-              actual={enCurso ? actual : null}
-              pasajeros={pasajerosEnVivo ?? []}
-              miUbicacion={miUbicacion}
-            />
-          ) : null}
 
           {/* Iniciar viaje */}
           {viaje.estado === 'abierta_con_chofer' ? (
@@ -500,7 +615,7 @@ export default function SalasChoferScreen({ onVolver }) {
                     >
                       <View style={styles.paradaTop}>
                         <View
-                          style={[styles.marca, esActual && styles.marcaActual, p.bajo && styles.marcaBajo]}
+                          style={[styles.marca, !esActual && !p.bajo && { backgroundColor: colorDeOrden(p.orden) }, esActual && styles.marcaActual, p.bajo && styles.marcaBajo]}
                         >
                           <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
                             {p.orden}

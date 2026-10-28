@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   View,
@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
+import PinInicio from '../../components/PinInicio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
@@ -42,8 +43,72 @@ function Marcador({ icono, estiloPunto }) {
   );
 }
 
+// Distancia aproximada en metros entre dos puntos [lng, lat]
+const distM = (a, b) => {
+  const dx = (a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180) * 111320;
+  const dy = (a[1] - b[1]) * 110574;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+// Corta los tramos en la posición del chofer: lo recorrido queda aparte.
+// Solo busca hacia adelante (desdeIdx) y no corta si está a más de toleranciaM de la ruta.
+function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
+  const todas = [];
+  tramos.forEach((t, k) => t.coordenadas.forEach((c, j) => todas.push({ c, k, j })));
+  if (todas.length === 0) return { restantes: tramos, recorrido: null, idx: 0 };
+
+  let idx = Math.min(desdeIdx, todas.length - 1);
+  if (pos) {
+    let mejor = -1;
+    let min = Infinity;
+    for (let i = idx; i < todas.length; i++) {
+      const d = distM(todas[i].c, [pos.lng, pos.lat]);
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    }
+    if (mejor >= 0 && min <= toleranciaM) idx = mejor;
+  }
+  if (idx === 0) return { restantes: tramos, recorrido: null, idx };
+
+  const corte = todas[idx];
+  const restantes = tramos
+    .map((t, k) => {
+      if (k < corte.k) return null;
+      return k === corte.k ? { ...t, coordenadas: t.coordenadas.slice(corte.j) } : t;
+    })
+    .filter((t) => t && t.coordenadas.length >= 2);
+  const recorrido = todas.slice(0, idx + 1).map((x) => x.c);
+  return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
+}
+
 function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
   const camara = useRef(null);
+
+  // Ruta cortada según el avance del chofer
+  const coordsRuta = ruta?.geometry?.coordinates;
+  const rutaClave = coordsRuta?.length
+    ? `${coordsRuta.length}|${coordsRuta[0][0]}|${coordsRuta[coordsRuta.length - 1][0]}`
+    : '';
+  const tramos = useMemo(
+    () =>
+      coordsRuta && coordsRuta.length >= 2
+        ? [{ orden: 0, color: '#F58220', coordenadas: coordsRuta }]
+        : [],
+    [rutaClave] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const avance = useRef(0);
+  const tramosPrevios = useRef(null);
+  const corte = useMemo(() => {
+    if (tramosPrevios.current !== tramos) {
+      tramosPrevios.current = tramos; // ruta nueva: el avance vuelve a empezar
+      avance.current = 0;
+    }
+    const r = recortarTramos(tramos, chofer, avance.current);
+    avance.current = r.idx;
+    return r;
+  }, [tramos, chofer]);
 
    // Clave estable: solo cambia si cambian los puntos o la ruta de verdad,
   // no cada vez que el refresco del viaje crea objetos nuevos.
@@ -82,15 +147,31 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
         }}
       />
 
-      {ruta?.geometry ? (
+            {tramos.length > 0 ? (
         <Mapbox.ShapeSource
           id="rutaPreview"
-          shape={{ type: 'Feature', geometry: ruta.geometry, properties: {} }}
+          shape={{
+            type: 'FeatureCollection',
+            features: [
+              ...(corte.recorrido
+                ? [{
+                    type: 'Feature',
+                    properties: { color: '#C9C5B8' },
+                    geometry: { type: 'LineString', coordinates: corte.recorrido },
+                  }]
+                : []),
+              ...corte.restantes.map((t) => ({
+                type: 'Feature',
+                properties: { color: t.color },
+                geometry: { type: 'LineString', coordinates: t.coordenadas },
+              })),
+            ],
+          }}
         >
           <Mapbox.LineLayer
             id="rutaLinea"
             style={{
-              lineColor: '#F58220',
+              lineColor: ['get', 'color'],
               lineWidth: 5,
               lineCap: 'round',
               lineJoin: 'round',
@@ -150,7 +231,7 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
       ) : null}
 
       <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
-        <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
+        <PinInicio />
       </Mapbox.PointAnnotation>
       {destino ? (
         <Mapbox.PointAnnotation
@@ -635,7 +716,7 @@ export default function PedirViajeScreen({
           />
 
           <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
-            <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
+            <PinInicio />
           </Mapbox.PointAnnotation>
 
           {destino ? (
