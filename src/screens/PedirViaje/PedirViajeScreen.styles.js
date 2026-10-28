@@ -364,9 +364,10 @@ export default StyleSheet.create({
   },
 
   // ---- Pantalla "Tu viaje" ----
-  viajeContenedor: {
+    viajeContenedor: {
     flex: 1,
     backgroundColor: CREMA,
+    overflow: 'hidden',
   },
   mapaViajeFull: {
     flex: 1,
@@ -375,8 +376,11 @@ export default StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    marginTop: -28,
-    paddingTop: 10,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 0,
     maxHeight: '62%',
     elevation: 12,
     shadowColor: '#000',

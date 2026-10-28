@@ -10,6 +10,7 @@ import {
   ScrollView,
   SafeAreaView,
   Animated,
+  PanResponder,
   Image,
   Platform,
   StatusBar,
@@ -17,6 +18,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
 import PinInicio from '../../components/PinInicio';
+import PinFoto from '../../components/PinFoto';
+import Avatar from '../../components/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
@@ -83,21 +86,90 @@ function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
   return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
 }
 
-function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
+// Un color por tramo (igual que en el mapa del chofer)
+const COLORES_TRAMO = ['#EA580C', '#7C3AED', '#0D9488', '#DB2777'];
+const colorDeOrden = (orden) => COLORES_TRAMO[(Math.max(1, orden) - 1) % COLORES_TRAMO.length];
+
+// Parte la ruta en tramos: origen → parada 1 → parada 2 → ...
+function partirRuta(coordenadas, paradas) {
+  if (!coordenadas?.length || !paradas?.length) return [];
+  const masCercano = (p) => {
+    let mejor = 0;
+    let min = Infinity;
+    coordenadas.forEach(([lng, lat], i) => {
+      const d = (lng - p.lng) ** 2 + (lat - p.lat) ** 2;
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    });
+    return mejor;
+  };
+  const ordenadas = [...paradas].sort((a, b) => a.orden - b.orden);
+  let desde = 0;
+  return ordenadas.map((p, k) => {
+    let hasta = masCercano(p);
+    if (k === ordenadas.length - 1) hasta = coordenadas.length - 1;
+    if (hasta <= desde) hasta = Math.min(desde + 1, coordenadas.length - 1);
+    const tramo = { orden: p.orden, color: colorDeOrden(p.orden), coordenadas: coordenadas.slice(desde, hasta + 1) };
+    desde = hasta;
+    return tramo;
+  });
+}
+
+// Pin de una parada; al cargar la foto se redibuja (Android la deja vacía la primera vez)
+function PinParada({ parada }) {
+  const ref = useRef(null);
+  return (
+    <Mapbox.PointAnnotation
+      ref={ref}
+      id={`parada-${parada.orden}`}
+      coordinate={[parada.lng, parada.lat]}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <PinFoto
+        uri={parada.foto_url}
+        orden={parada.orden}
+        color={colorDeOrden(parada.orden)}
+        resaltado={!!parada.es_mia}
+        onCargada={() => ref.current?.refresh()}
+      />
+    </Mapbox.PointAnnotation>
+  );
+}
+
+function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer, miUbicacion, style }) {
   const camara = useRef(null);
 
+  // ruta_sala llega como texto JSON
+  const coordsSala = useMemo(() => {
+    try {
+      const g = typeof rutaSala === 'string' ? JSON.parse(rutaSala) : rutaSala;
+      return g?.coordinates?.length >= 2 ? g.coordinates : null;
+    } catch {
+      return null;
+    }
+  }, [rutaSala]);
+
+  const paradasValidas = (paradas ?? []).filter((p) => p.orden != null);
+  const paradasKey = paradasValidas.map((p) => `${p.orden}:${p.lat}:${p.lng}`).join('|');
+  const paradasPines = paradasValidas.filter((p) => !p.bajo);
+
   // Ruta cortada según el avance del chofer
-  const coordsRuta = ruta?.geometry?.coordinates;
+  const coordsRuta = coordsSala ?? ruta?.geometry?.coordinates;
   const rutaClave = coordsRuta?.length
     ? `${coordsRuta.length}|${coordsRuta[0][0]}|${coordsRuta[coordsRuta.length - 1][0]}`
     : '';
-  const tramos = useMemo(
-    () =>
-      coordsRuta && coordsRuta.length >= 2
-        ? [{ orden: 0, color: '#F58220', coordenadas: coordsRuta }]
-        : [],
-    [rutaClave] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const tramos = useMemo(() => {
+    if (!coordsRuta || coordsRuta.length < 2) return [];
+    if (coordsSala && paradasValidas.length > 0) {
+      const t = partirRuta(coordsSala, paradasValidas).filter((x) => x.coordenadas.length >= 2);
+      if (t.length > 0) return t;
+    }
+    return [{ orden: 0, color: '#F58220', coordenadas: coordsRuta }];
+  }, [rutaClave, paradasKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   const avance = useRef(0);
   const tramosPrevios = useRef(null);
   const corte = useMemo(() => {
@@ -233,7 +305,10 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
       <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
         <PinInicio />
       </Mapbox.PointAnnotation>
-      {destino ? (
+        {paradasPines.map((p) => (
+      <PinParada key={p.orden} parada={p} />
+      ))}
+      {destino && paradasValidas.length === 0 ? (
         <Mapbox.PointAnnotation
           id="destinoViaje"
           coordinate={[destino.lng, destino.lat]}
@@ -392,7 +467,44 @@ export default function PedirViajeScreen({
   const camaraRef = useRef(null);
     const [mapaListo, setMapaListo] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [tecladoAlto, setTecladoAlto] = useState(0);
+    const [tecladoAlto, setTecladoAlto] = useState(0);
+
+  // Tarjeta deslizable: solo la rayita se arrastra
+  const ASOMA = 90; // lo que queda visible al bajarla
+  const alturaSheet = useRef(0);
+  const sheetY = useRef(new Animated.Value(0)).current;
+  const colapsado = useRef(false);
+
+  const maxBajada = () => Math.max(0, alturaSheet.current - ASOMA);
+  const moverSheet = (abajo) => {
+    colapsado.current = abajo;
+    Animated.spring(sheetY, {
+      toValue: abajo ? maxBajada() : 0,
+      useNativeDriver: true,
+      bounciness: 0,
+    }).start();
+  };
+
+  const panSheet = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, g) => {
+        const base = colapsado.current ? maxBajada() : 0;
+        sheetY.setValue(Math.min(maxBajada(), Math.max(0, base + g.dy)));
+      },
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 5 && Math.abs(g.dy) < 5) {
+          moverSheet(!colapsado.current); // un toque la alterna
+        } else if (g.dy > 40) {
+          moverSheet(true);
+        } else if (g.dy < -40) {
+          moverSheet(false);
+        } else {
+          moverSheet(colapsado.current);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     const mostrar = Keyboard.addListener('keyboardDidShow', (e) =>
@@ -455,6 +567,8 @@ export default function PedirViajeScreen({
             chofer={choferEnVivo}
             miUbicacion={miUbicacion}
             ruta={ruta}
+            rutaSala={viaje.ruta_sala}
+            paradas={viaje.paradas_sala}
           />
         ) : (
           <View style={styles.mapaViajeFull} />
@@ -471,8 +585,19 @@ export default function PedirViajeScreen({
         ) : null}
 
         {/* Tarjeta inferior */}
-        <View style={styles.sheet}>
-          <View style={styles.sheetHandle} />
+        <Animated.View
+          style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
+          onLayout={(e) => {
+            alturaSheet.current = e.nativeEvent.layout.height;
+            if (colapsado.current) sheetY.setValue(maxBajada());
+          }}
+        >
+          <View
+            {...panSheet.panHandlers}
+            style={{ paddingTop: 12, paddingBottom: 10, alignItems: 'center' }}
+          >
+            <View style={styles.sheetHandle} />
+          </View>
 
           <ScrollView
             style={styles.sheetScroll}
@@ -581,9 +706,22 @@ export default function PedirViajeScreen({
                       i < viaje.pasajeros && styles.asientoLleno,
                     ]}
                   >
-                    <Text style={styles.asientoTexto}>
-                      {i < viaje.pasajeros ? '👤' : ''}
-                    </Text>
+                                        {viaje.paradas_sala?.[i] ? (
+                      <Avatar
+                        uri={viaje.paradas_sala[i].foto_url}
+                        nombre={String(viaje.paradas_sala[i].orden)}
+                        tamano={36}
+                        style={{
+                          borderWidth: viaje.paradas_sala[i].es_mia ? 3 : 2,
+                          borderColor: colorDeOrden(viaje.paradas_sala[i].orden),
+                          opacity: viaje.paradas_sala[i].bajo ? 0.4 : 1,
+                        }}
+                      />
+                    ) : (
+                      <Text style={styles.asientoTexto}>
+                        {i < viaje.pasajeros ? '👤' : ''}
+                      </Text>
+                    )}
                   </View>
                 ))}
               </View>
@@ -648,7 +786,7 @@ export default function PedirViajeScreen({
               </View>
             ) : null}
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     );
   }

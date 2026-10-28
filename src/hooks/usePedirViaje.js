@@ -212,11 +212,26 @@ export function usePedirViaje() {
     rutaPedidaPara.current = clave; // se marca antes: si falla, no reintenta en bucle
 
     (async () => {
-      const { data, error: errorFn } = await supabase.functions.invoke('ruta-preview', {
-        body: { lat: dLat, lng: dLng },
-      });
+            let data = null;
+      let errorFn = null;
+      for (let intento = 0; intento < 3; intento++) {
+        if (intento > 0) {
+          await supabase.auth.refreshSession(); // renueva el token antes de reintentar
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+        const r = await supabase.functions.invoke('ruta-preview', {
+          body: { lat: dLat, lng: dLng },
+        });
+        data = r.data;
+        errorFn = r.error;
+        if (!errorFn && data?.geometry) break;
+      }
       if (errorFn || !data?.geometry) {
-        console.error('No se pudo cargar la ruta:', errorFn?.message ?? data?.error);
+                let detalle = '';
+        try {
+          detalle = await errorFn?.context?.text?.();
+        } catch {}
+        console.error('No se pudo cargar la ruta:', errorFn?.message ?? data?.error, 'STATUS:', errorFn?.context?.status, 'CUERPO:', detalle);
         setRuta(null);
         return;
       }

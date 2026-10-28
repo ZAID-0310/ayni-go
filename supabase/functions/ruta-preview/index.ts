@@ -19,8 +19,12 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_ANON_KEY')!,
     { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
   );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return json({ error: 'No autenticado' }, 401);
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const { data: { user }, error: errorAuth } = await supabase.auth.getUser(token);
+  if (!user) {
+    console.error('RUTA-PREVIEW auth:', errorAuth?.message ?? 'sin usuario', errorAuth?.status ?? '');
+    return json({ error: 'No autenticado' }, 401);
+  }
 
   // 2. Validar destino
   const { lat, lng } = await req.json();
