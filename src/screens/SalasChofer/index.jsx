@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
 import PinInicio from '../../components/PinInicio';
+import PinFoto from '../../components/PinFoto';
+import Avatar from '../../components/Avatar';
 import styles, { colors } from './SalasChoferScreen.styles';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
@@ -144,6 +146,27 @@ function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
   const recorrido = todas.slice(0, idx + 1).map((x) => x.c);
   return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
 }
+// Pin de una parada con foto; al cargar la foto se redibuja (Android la deja vacía la primera vez)
+function PinParada({ parada, color, resaltado, atenuado }) {
+  const ref = useRef(null);
+  return (
+    <Mapbox.PointAnnotation
+      ref={ref}
+            id={`parada-chofer-${parada.orden}-${resaltado ? 'a' : parada.bajo ? 'b' : 'n'}`}
+      coordinate={[parada.lng, parada.lat]}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <PinFoto
+        uri={parada.foto_url}
+        orden={parada.orden}
+        color={color}
+        resaltado={resaltado}
+        atenuado={atenuado}
+        onCargada={() => ref.current?.refresh()}
+      />
+    </Mapbox.PointAnnotation>
+  );
+}
 
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
 function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null, estilo }) {
@@ -253,7 +276,7 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
           <PinInicio />
         </Mapbox.PointAnnotation>
 
-                <Mapbox.ShapeSource
+        <Mapbox.ShapeSource
           id="paradasChofer"
           shape={{
             type: 'FeatureCollection',
@@ -275,27 +298,21 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
             })),
           }}
         >
-          <Mapbox.CircleLayer
-            id="paradasCirculos"
-            style={{
-              circleRadius: 14,
-              circleColor: ['get', 'color'],
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 2,
-            }}
-          />
-          <Mapbox.SymbolLayer
-            id="paradasNumeros"
-            style={{
-              textField: ['get', 'orden'],
-              textSize: 14,
-              textColor: ['get', 'textoColor'],
-              textAllowOverlap: true,
-              textIgnorePlacement: true,
-            }}
-          />
+        {paradas.map((p) => {
+          const esActual = !p.bajo && actual?.pasajero_id === p.pasajero_id;
+          return (
+            <PinParada
+              key={`${p.orden}-${esActual ? 'a' : p.bajo ? 'b' : 'n'}`}
+              parada={p}
+              color={p.bajo ? colors.gris : esActual ? colors.dorado : colorDeOrden(p.orden)}
+              resaltado={esActual}
+              atenuado={!!p.bajo}
+            />
+          );
+        })}
         </Mapbox.ShapeSource>
-              {miUbicacion ? (
+
+          {miUbicacion ? (
           <Mapbox.ShapeSource
             id="miPosicion"
             shape={{
@@ -523,11 +540,24 @@ export default function SalasChoferScreen({ onVolver }) {
             <View style={styles.asientosFila}>
               {Array.from({ length: viaje.capacidad }).map((_, i) => (
                 <View
-                  key={i}
-                  style={[styles.asiento, i < viaje.pasajeros && styles.asientoLleno]}
-                >
+                key={i}
+                style={[styles.asiento, i < viaje.pasajeros && styles.asientoLleno]}
+              >
+                {paradas[i] ? (
+                  <Avatar
+                    uri={paradas[i].foto_url}
+                    nombre={String(paradas[i].orden)}
+                    tamano={36}
+                    style={{
+                      borderWidth: 2,
+                      borderColor: paradas[i].bajo ? colors.gris : colorDeOrden(paradas[i].orden),
+                      opacity: paradas[i].bajo ? 0.4 : 1,
+                    }}
+                  />
+                ) : (
                   <Text style={styles.asientoTexto}>{i < viaje.pasajeros ? '👤' : ''}</Text>
-                </View>
+                )}
+              </View>
               ))}
             </View>
             <Text style={styles.cuposDetalle}>
@@ -614,13 +644,17 @@ export default function SalasChoferScreen({ onVolver }) {
                       style={[styles.paradaCard, esActual && styles.paradaCardActual]}
                     >
                       <View style={styles.paradaTop}>
-                        <View
-                          style={[styles.marca, !esActual && !p.bajo && { backgroundColor: colorDeOrden(p.orden) }, esActual && styles.marcaActual, p.bajo && styles.marcaBajo]}
-                        >
-                          <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
-                            {p.orden}
-                          </Text>
-                        </View>
+                        <Avatar
+                          uri={p.foto_url}
+                          nombre={String(p.orden)}
+                          tamano={40}
+                          style={{
+                            marginRight: 10,
+                            borderWidth: esActual ? 3 : 2,
+                            borderColor: p.bajo ? colors.gris : esActual ? colors.dorado : colorDeOrden(p.orden),
+                            opacity: p.bajo ? 0.5 : 1,
+                          }}
+                        />
                         <View style={styles.paradaTextos}>
                           <Text
                             style={[styles.paradaDir, p.bajo && styles.paradaDirBajo]}
