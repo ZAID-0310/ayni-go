@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import {
   iniciarUbicacionSegundoPlano,
@@ -80,14 +81,19 @@ export function useSalasChofer() {
   useEffect(() => {
     let activo = true;
     let id = null;
+    let suscripcion = null;
 
     const enviarPing = async () => {
             // Se envía siempre: el ping normal respalda a la tarea de segundo plano
       try {
+        const reciente = await Location.getLastKnownPositionAsync({ maxAge: 60000 }).catch(() => null);
+        if (reciente && activo) {
+          setMiUbicacion({ lat: reciente.coords.latitude, lng: reciente.coords.longitude });
+        }
         let coords = null;
         try {
           const pos = await conTimeout(
-            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+                        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
             8000
           );
           coords = pos.coords;
@@ -106,6 +112,11 @@ export function useSalasChofer() {
 
         console.log('PING coords', coords.latitude, coords.longitude);
         if (activo) setMiUbicacion({ lat: coords.latitude, lng: coords.longitude });
+        // Con la tarea de segundo plano activa, este ping solo envía si la lectura es buena
+        if (segundoPlanoRef.current && (coords.accuracy == null || coords.accuracy > 50)) {
+          if (activo) setErrorUbicacion(null);
+          return;
+        }
         const { error } = await supabase.rpc('chofer_ping', {
           p_lat: coords.latitude,
           p_lng: coords.longitude,
@@ -131,11 +142,18 @@ export function useSalasChofer() {
       if (!activo) return;
       refrescar(); // ya con ubicación, pedir las solicitudes sin esperar los 5 s
       id = setInterval(enviarPing, PING_MS);
+      suscripcion = AppState.addEventListener('change', (estado) => {
+        if (estado === 'active') {
+          enviarPing();
+          refrescar();
+        }
+      });
     })();
 
     return () => {
       activo = false;
       if (id) clearInterval(id);
+      suscripcion?.remove();
     };
   }, [refrescar]);
 

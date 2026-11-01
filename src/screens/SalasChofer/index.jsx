@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
@@ -171,7 +172,7 @@ function PinParada({ parada, color, resaltado, atenuado }) {
 }
 
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
-function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null, estilo }) {
+function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null, recentrar = 0, estilo }) {
   const camara = useRef(null);
 
   const linea = useMemo(() => {
@@ -215,15 +216,20 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
         ...paradas.map((p) => [p.lng, p.lat]),
       ];
     if (pts.length < 2) return;
-    const lngs = pts.map((p) => p[0]);
-    const lats = pts.map((p) => p[1]);
+    const todos = [...pts];
+    if (recentrar > 0) {
+      if (miUbicacion) todos.push([miUbicacion.lng, miUbicacion.lat]);
+      pasajeros.forEach((p) => todos.push([p.lng, p.lat]));
+    }
+    const lngs = todos.map((p) => p[0]);
+    const lats = todos.map((p) => p[1]);
     camara.current?.fitBounds(
       [Math.max(...lngs), Math.max(...lats)],
       [Math.min(...lngs), Math.min(...lats)],
       [40, 40, 40, 40],
       600
     );
-  }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [clave, recentrar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!origen) return null;
 
@@ -481,6 +487,7 @@ function MapaCandidato({ origen, ruta, destino, paradas = [] }) {
 
 export default function SalasChoferScreen({ onVolver }) {
   const insets = useSafeAreaInsets();
+  const [recentrar, setRecentrar] = useState(0);
   const {
     solicitudes,
     viaje,
@@ -624,9 +631,31 @@ export default function SalasChoferScreen({ onVolver }) {
             paradas={paradas}
             actual={enCurso ? actual : null}
             pasajeros={pasajerosEnVivo ?? []}
-            miUbicacion={miUbicacion}
+                        miUbicacion={miUbicacion}
+            recentrar={recentrar}
             estilo={{ height: 340, marginTop: 0, marginBottom: 0, marginHorizontal: 0, borderRadius: 0 }}
           />
+        ) : null}
+        {paradas.length > 0 ? (
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              right: 16,
+              top: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 6,
+              zIndex: 10,
+            }}
+            onPress={() => setRecentrar((n) => n + 1)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="locate" size={22} color={colors.verde} />
+          </TouchableOpacity>
         ) : null}
                 <ScrollView
           style={[
