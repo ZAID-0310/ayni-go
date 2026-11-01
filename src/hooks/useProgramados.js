@@ -91,7 +91,7 @@ export function useProgramados() {
 
   const eliminar = (id) => ejecutar('eliminar_programado', { p_id: id });
 
-  const guardar = ({ lat, lng, direccion, etiqueta, horaTxt }) => {
+    const guardar = ({ lat, lng, direccion, etiqueta, horaTxt, comentario }) => {
     const hora = parseHora(horaTxt);
     if (!hora) {
       Alert.alert('Hora inválida', 'Escribe la hora como HH:MM, por ejemplo 07:30');
@@ -103,6 +103,7 @@ export function useProgramados() {
       p_direccion: direccion,
       p_etiqueta: etiqueta,
       p_hora: hora,
+      p_comentario: comentario?.trim() || null,
     });
   };
 

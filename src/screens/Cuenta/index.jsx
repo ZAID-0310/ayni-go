@@ -41,7 +41,7 @@ export default function CuentaScreen({ perfil, onIrAVehiculo, onCerrarSesion, on
       ...(fotoUrl ? [{ text: 'Quitar foto', style: 'destructive', onPress: quitar }] : []),
       { text: 'Cancelar', style: 'cancel' },
     ];
-    Alert.alert('Foto de perfil', undefined, botones);
+    Alert.alert('Foto de perfil', undefined, botones, { cancelable: true });
   };
 
   return (

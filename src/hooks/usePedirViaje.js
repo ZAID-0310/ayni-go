@@ -20,6 +20,7 @@ export function usePedirViaje() {
   const [origen, setOrigen] = useState(null);
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
+  const [comentario, setComentario] = useState('');
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const reqDireccion = useRef(0);
   // Viaje activo (lo que devuelve mi_viaje_activo) o null si no hay
@@ -336,6 +337,7 @@ const elegirSugerencia = async (s) => {
       p_lng: destino.lng,
       p_direccion:
         [destino.lugar, destino.direccion].filter(Boolean).join(' — ') || null,
+        p_comentario: comentario.trim() || null,
     });
 
     if (errorRpc) {
@@ -371,6 +373,7 @@ const elegirSugerencia = async (s) => {
 
     const reiniciarPedido = () => {
     setDestino(null);
+    setComentario('');
     setConsulta('');
     setSugerencias([]);
     textoElegido.current = null;
@@ -392,6 +395,7 @@ const elegirSugerencia = async (s) => {
   return {
     origen,
     destino, setDestino,
+    comentario, setComentario,
     viaje,
     cargando,
     cargandoInicial,

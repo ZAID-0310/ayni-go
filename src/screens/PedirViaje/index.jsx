@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
 import PinInicio from '../../components/PinInicio';
+import PinFin from '../../components/PinFin';
 import PinFoto from '../../components/PinFoto';
 import Avatar from '../../components/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,14 +38,6 @@ const TEXTO_ESTADO = {
   en_curso: 'Viaje en curso',
 };
 
-function Marcador({ icono, estiloPunto }) {
-  return (
-    <View style={{ alignItems: 'center', width: 40 }}>
-      <Text style={{ fontSize: 22, lineHeight: 28 }}>{icono}</Text>
-      <View style={estiloPunto} />
-    </View>
-  );
-}
 
 // Distancia aproximada en metros entre dos puntos [lng, lat]
 const distM = (a, b) => {
@@ -314,7 +307,7 @@ function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer, miUbicacio
           coordinate={[destino.lng, destino.lat]}
           anchor={{ x: 0.5, y: 1 }}
         >
-          <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
+        <PinFin />
         </Mapbox.PointAnnotation>
       ) : null}
     </Mapbox.MapView>
@@ -454,13 +447,15 @@ export default function PedirViajeScreen({
     destino,
     setDestino,
     moverDestino,
+    comentario,
+    setComentario,
     buscandoDireccion,
     resumen,
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
-      choferEnVivo,
-      miUbicacion,
+    choferEnVivo,
+    miUbicacion,
   } = usePedirViaje();
 
   const insets = useSafeAreaInsets();
@@ -717,6 +712,13 @@ export default function PedirViajeScreen({
                           opacity: viaje.paradas_sala[i].bajo ? 0.4 : 1,
                         }}
                       />
+                                       ) : buscandoEstado && i === 0 ? (
+                      <Avatar
+                        uri={perfil?.foto_url}
+                        nombre={perfil?.nombre ?? '👤'}
+                        tamano={36}
+                        style={{ borderWidth: 3, borderColor: colorDeOrden(1) }}
+                      />
                     ) : (
                       <Text style={styles.asientoTexto}>
                         {i < viaje.pasajeros ? '👤' : ''}
@@ -863,7 +865,7 @@ export default function PedirViajeScreen({
               coordinate={[destino.lng, destino.lat]}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
+              <PinFin />
             </Mapbox.PointAnnotation>
           ) : null}
         </Mapbox.MapView>
@@ -953,6 +955,14 @@ export default function PedirViajeScreen({
                       placeholder="Detalle extra (opcional): ej. frente al parque"
                       placeholderTextColor="#888"
                       onChangeText={cambiarReferencia}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Comentario para el chofer (opcional)"
+                      placeholderTextColor="#888"
+                      value={comentario}
+                      onChangeText={setComentario}
+                      maxLength={200}
                     />
                   </>
                 ) : null}

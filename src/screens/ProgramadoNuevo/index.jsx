@@ -13,6 +13,7 @@ import { useElegirDestino } from '../../hooks/useElegirDestino';
 import { useProgramados, formatearHoraInput, parseHora } from '../../hooks/useProgramados';
 import { styles } from './ProgramadoNuevoScreen.styles';
 import PinInicio from '../../components/PinInicio';
+import PinFin from '../../components/PinFin';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
@@ -44,10 +45,11 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
 
   const { guardar, trabajando } = useProgramados();
 
-    const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
   const [etiqueta, setEtiqueta] = useState('');
   const [horaTxt, setHoraTxt] = useState('');
+  const [comentario, setComentario] = useState('');
   const [tecladoAlto, setTecladoAlto] = useState(0);
 
   // Sube el panel justo encima del teclado
@@ -99,6 +101,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
       direccion: direccionFinal,
       etiqueta: etiqueta.trim(),
       horaTxt,
+      comentario,
     });
     if (ok) onGuardado();
   };
@@ -141,7 +144,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
             coordinate={[destino.lng, destino.lat]}
             anchor={{ x: 0.5, y: 1 }}
           >
-            <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
+            <PinFin />
           </Mapbox.PointAnnotation>
         ) : null}
       </Mapbox.MapView>
@@ -189,6 +192,17 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado }) {
               placeholder="Detalle extra (opcional): ej. frente al parque"
               placeholderTextColor="#888"
               onChangeText={cambiarReferencia}
+            />
+          ) : null}
+
+          {destino ? (
+            <TextInput
+              style={styles.input}
+              placeholder="Comentario para el chofer (opcional)"
+              placeholderTextColor="#888"
+              value={comentario}
+              onChangeText={setComentario}
+              maxLength={200}
             />
           ) : null}
 

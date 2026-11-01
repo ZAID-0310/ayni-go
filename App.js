@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Appearance, View, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Appearance, View, StatusBar, ActivityIndicator, BackHandler, ToastAndroid } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
@@ -73,6 +73,85 @@ function AppContenido() {
   const [rolElegido, setRolElegido] = useState(null); // 'pasajero' | 'chofer'
   const [perfil, setPerfil] = useState(null);
 
+  const [restaurando, setRestaurando] = useState(true);
+
+  const ultimoAtras = useRef(0);
+
+  // Botón atrás del celular: retrocede una pantalla; en Inicio/Bienvenida pide pulsar dos veces para salir
+  useEffect(() => {
+    const ATRAS = {
+      vehiculo: 'cuenta',
+      documentos: 'home',
+      salasChofer: 'home',
+      pedirViaje: 'home',
+      programados: 'home',
+      programadosChofer: 'home',
+      historial: 'home',
+      cuenta: 'home',
+      programadoNuevo: 'programados',
+      registro: 'bienvenida',
+      login: 'bienvenida',
+      recuperar: 'login',
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const destino = ATRAS[pantalla];
+      if (destino) {
+        setPantalla(destino);
+        return true;
+      }
+      const ahora = Date.now();
+      if (ahora - ultimoAtras.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+      ultimoAtras.current = ahora;
+      ToastAndroid.show('Pulsa de nuevo atrás para salir', ToastAndroid.SHORT);
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [pantalla]);
+
+  // Al abrir: si hay sesión guardada, entrar directo; si la sesión termina, volver a Bienvenida
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (activo && data) {
+            setPerfil(data);
+            setPantalla('home');
+          }
+        }
+      } catch (e) {
+        console.log('SESION restaurar falló', e.message);
+      } finally {
+        if (activo) setRestaurando(false);
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
+      if (evento === 'SIGNED_OUT') {
+        detenerUbicacionSegundoPlano();
+        setPerfil(null);
+        setPantalla((p) =>
+          ['bienvenida', 'login', 'registro', 'recuperar'].includes(p) ? p : 'bienvenida'
+        );
+      }
+    });
+    return () => {
+      activo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const manejarLoginExitoso = async (usuario) => {
     const { data, error } = await supabase
       .from('usuarios')
@@ -116,6 +195,14 @@ function AppContenido() {
     setPantalla('bienvenida');
   };
 
+    if (restaurando) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAF7EE' }}>
+        <ActivityIndicator color="#0F5132" />
+      </View>
+    );
+  }
+
   if (pantalla === 'vehiculo') {
     return (
       <VehicleScreen
@@ -139,7 +226,7 @@ function AppContenido() {
   }
 
     if (pantalla === 'pedirViaje') {
-    return <PedirViajeScreen onVolver={() => setPantalla('home')} />;
+        return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
   }
 
   if (pantalla === 'programados') {
