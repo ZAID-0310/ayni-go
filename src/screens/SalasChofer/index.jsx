@@ -14,6 +14,8 @@ import Mapbox from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
+import { useCalificaciones } from '../../hooks/useCalificaciones';
+import ModalCalificar from '../../components/ModalCalificar';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
 import PinInicio from '../../components/PinInicio';
 import PinFoto from '../../components/PinFoto';
@@ -511,7 +513,13 @@ export default function SalasChoferScreen({ onVolver }) {
     cerrarResumen,
   } = useSalasChofer();
 
-    const hayViajeActivo =
+  const cal = useCalificaciones();
+
+  useEffect(() => {
+    if (resumen?.sala_id) cal.abrir(resumen.sala_id);
+  }, [resumen?.sala_id]);
+
+  const hayViajeActivo =
     viaje?.estado === 'abierta_con_chofer' || viaje?.estado === 'en_curso';
   const { pasajeros: pasajerosEnVivo } = useUbicacionesSala(
     
@@ -521,6 +529,7 @@ export default function SalasChoferScreen({ onVolver }) {
   
 
   const cerrarYVolver = () => {
+    cal.cerrar();
     cerrarResumen();
     onVolver?.();
   };
@@ -602,6 +611,16 @@ export default function SalasChoferScreen({ onVolver }) {
             <Text style={styles.btnTexto}>Listo</Text>
           </TouchableOpacity>
         </ScrollView>
+
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
       </SafeAreaView>
     );
   }

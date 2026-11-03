@@ -8,6 +8,7 @@ import RegisterScreen from './src/screens/Register';
 import HomeScreen from './src/screens/Home';
 import VehicleScreen from './src/screens/Vehicle';
 import DocumentsScreen from './src/screens/Documents';
+import CalificacionesScreen from './src/screens/Calificaciones';
 import PedirViajeScreen from './src/screens/PedirViaje';
 import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
@@ -82,6 +83,7 @@ function AppContenido() {
     const ATRAS = {
       vehiculo: 'cuenta',
       documentos: 'home',
+      calificaciones: 'home',
       salasChofer: 'home',
       pedirViaje: 'home',
       programados: 'home',
@@ -221,12 +223,16 @@ function AppContenido() {
     );
   }
 
+  if (pantalla === 'calificaciones') {
+        return <CalificacionesScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
+  }
+
   if (pantalla === 'salasChofer') {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
-    if (pantalla === 'pedirViaje') {
-        return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
+  if (pantalla === 'pedirViaje') {
+    return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} onIrACalificaciones={() => setPantalla('calificaciones')} />;
   }
 
   if (pantalla === 'programados') {
@@ -279,6 +285,7 @@ function AppContenido() {
         onCerrarSesion={manejarCerrarSesion}
         onIrAVehiculo={() => setPantalla('vehiculo')}
         onIrADocumentos={() => setPantalla('documentos')}
+        onIrACalificaciones={() => setPantalla('calificaciones')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}
         onIrAProgramados={() => setPantalla('programados')}

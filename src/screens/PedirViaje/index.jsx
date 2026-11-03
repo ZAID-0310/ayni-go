@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useCalificaciones } from '../../hooks/useCalificaciones';
+import ModalCalificar from '../../components/ModalCalificar';
 
 import {
   View,
@@ -426,6 +428,7 @@ export default function PedirViajeScreen({
   perfil,
   onIrAVehiculo,
   onIrADocumentos,
+  onIrACalificaciones,
   onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
@@ -489,6 +492,12 @@ export default function PedirViajeScreen({
     borrarUbicacion,
     alternarPredeterminada,
   } = usePedirViaje();
+
+  const cal = useCalificaciones();
+
+    useEffect(() => {
+      if (resumen?.sala_id) cal.abrir(resumen.sala_id);
+  }, [resumen?.sala_id]);
 
   const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
@@ -599,9 +608,25 @@ export default function PedirViajeScreen({
     );
   }
 
-     // ---------- Viaje terminado o cancelado ----------
-    if (resumen) {
-    return <ResumenViaje resumen={resumen} onCerrar={cerrarResumen} />;
+    // ---------- Viaje terminado o cancelado ----------
+  if (resumen) {
+    return (
+      <>
+        <ResumenViaje
+          resumen={resumen}
+          onCerrar={() => { cal.cerrar(); cerrarResumen(); }}
+        />
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
+      </>
+  );
   }
   if (!viaje && avisoCancelado) {
     return <AvisoCancelado onCerrar={cerrarAviso} />;
@@ -1571,6 +1596,7 @@ export default function PedirViajeScreen({
         onIrAInicio={() => {}}
         onIrAVehiculo={onIrAVehiculo}
         onIrADocumentos={onIrADocumentos}
+        onIrACalificaciones={onIrACalificaciones}
         onIrASalasChofer={onIrASalasChofer}
         onIrAProgramados={onIrAProgramados}
         onIrAProgramadosChofer={onIrAProgramadosChofer}

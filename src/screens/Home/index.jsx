@@ -23,6 +23,7 @@ export default function HomeScreen({
   onCerrarSesion,
   onIrAVehiculo,
   onIrADocumentos,
+  onIrACalificaciones,
   onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
@@ -45,6 +46,7 @@ export default function HomeScreen({
             perfil={perfil}
             onIrAVehiculo={onIrAVehiculo}
             onIrADocumentos={onIrADocumentos}
+            onIrACalificaciones={onIrACalificaciones}
             onIrASalasChofer={onIrASalasChofer}
             onIrAProgramados={onIrAProgramados}
             onIrAProgramadosChofer={onIrAProgramadosChofer}
@@ -104,6 +106,7 @@ export default function HomeScreen({
           onCerrar={() => setMenuAbierto(false)}
           perfil={perfil}
           onIrADocumentos={onIrADocumentos}
+          onIrACalificaciones={onIrACalificaciones}
           onCerrarSesion={cerrarSesion}
         />
       </View>

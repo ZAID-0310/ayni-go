@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHome } from '../../hooks/useHome';
 import { useFotoPerfil } from '../../hooks/useFotoPerfil';
 import useTotalViajes from '../../hooks/useTotalViajes';
+import { useMisCalificaciones } from '../../hooks/useMisCalificaciones';
 import Avatar from '../../components/Avatar';
 import styles, { COLORES } from './CuentaScreen.styles';
 
@@ -16,6 +17,7 @@ export default function CuentaScreen({ perfil, onIrAVehiculo, onCerrarSesion, on
   const { loading, cerrarSesion } = useHome({ onCerrarSesion });
   const { fotoUrl, subiendo, error, elegir, quitar } = useFotoPerfil(perfil?.id, perfil?.foto_url);
   const { total: totalViajes, cargando: cargandoViajes } = useTotalViajes();
+  const { promedio, total: totalCalif, cargando: cargandoCalif } = useMisCalificaciones();
 
   const nombre = perfil?.nombre || 'Usuario';
   const esChofer = perfil?.rol === 'chofer';
@@ -25,7 +27,11 @@ export default function CuentaScreen({ perfil, onIrAVehiculo, onCerrarSesion, on
 
   const stats = [
     { valor: cargandoViajes ? '-' : totalViajes, label: 'VIAJES' },
-    { valor: '-', label: 'RATING' },
+    {
+      valor: cargandoCalif || totalCalif === 0 || promedio === null ? '-' : Number(promedio).toFixed(1),
+      label: 'RATING',
+      estrella: !cargandoCalif && totalCalif > 0 && promedio !== null,
+    },
     { valor: `${nivel}°`, label: 'NIVEL' },
   ];
 
@@ -102,7 +108,12 @@ export default function CuentaScreen({ perfil, onIrAVehiculo, onCerrarSesion, on
             <React.Fragment key={s.label}>
               {i > 0 && <View style={styles.statDivider} />}
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{s.valor}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.statNumber}>{s.valor}</Text>
+                  {s.estrella ? (
+                    <Ionicons name="star" size={18} color="#E0A800" style={{ marginLeft: 4 }} />
+                  ) : null}
+                </View>
                 <Text style={styles.statLabel}>{s.label}</Text>
               </View>
             </React.Fragment>
