@@ -40,15 +40,14 @@ Deno.serve(async (req) => {
   });
   if (errDest || !dest) return json({ error: 'No autorizado o sala sin destino' }, 403);
 
-  // 4. Origen desde la BD
-  const { data: cfg, error: errCfg } = await supabase
-    .from('config_salas').select('origen_lat, origen_lng').single();
-  if (errCfg || !cfg) return json({ error: 'Sin origen configurado' }, 500);
+  // 4. Origen de la propia sala (también verifica que eres el chofer)
+  const { data: org, error: errOrg } = await supabase.rpc('origen_sala', { p_sala_id: sala_id });
+  if (errOrg || !org) return json({ error: 'Sin origen para esta sala' }, 500);
 
   // 5. Directions
   const url =
     `https://api.mapbox.com/directions/v5/mapbox/driving/` +
-    `${cfg.origen_lng},${cfg.origen_lat};${dest.lng},${dest.lat}` +
+    `${org.lng},${org.lat};${dest.lng},${dest.lat}` +
     `?geometries=geojson&overview=full&access_token=${Deno.env.get('MAPBOX_TOKEN')}`;
   const r = await fetch(url);
   if (!r.ok) return json({ error: 'Mapbox no respondió' }, 502);

@@ -27,21 +27,38 @@ Deno.serve(async (req) => {
   }
 
   // 2. Validar destino
-  const { lat, lng } = await req.json();
+  const { lat, lng, origen_lat, origen_lng } = await req.json();
   if (typeof lat !== 'number' || typeof lng !== 'number' ||
       Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return json({ error: 'Destino inválido' }, 400);
   }
 
-  // 3. Origen desde la BD (el cliente no lo elige)
-  const { data: cfg, error } = await supabase
-    .from('config_salas').select('origen_lat, origen_lng').single();
-  if (error || !cfg) return json({ error: 'Sin origen configurado' }, 500);
+  // 3. Origen desde la BD (el cliente no lo elige): el de su sala activa, o el punto base
+  let oLat: number;
+  let oLng: number;
+  const { data: org } = await supabase.rpc('origen_mi_viaje');
+  if (org) {
+    oLat = org.lat;
+    oLng = org.lng;
+  } else if (
+    typeof origen_lat === 'number' && typeof origen_lng === 'number' &&
+    Math.abs(origen_lat) <= 90 && Math.abs(origen_lng) <= 180
+  ) {
+    // Sin viaje activo: vista previa con la recogida que eligió el pasajero
+    oLat = origen_lat;
+    oLng = origen_lng;
+  } else {
+    const { data: cfg, error } = await supabase
+      .from('config_salas').select('origen_lat, origen_lng').single();
+    if (error || !cfg) return json({ error: 'Sin origen configurado' }, 500);
+    oLat = cfg.origen_lat;
+    oLng = cfg.origen_lng;
+  }
 
   // 4. Directions
   const url =
     `https://api.mapbox.com/directions/v5/mapbox/driving/` +
-    `${cfg.origen_lng},${cfg.origen_lat};${lng},${lat}` +
+        `${oLng},${oLat};${lng},${lat}` +
     `?geometries=geojson&overview=full&access_token=${Deno.env.get('MAPBOX_TOKEN')}`;
   const r = await fetch(url);
   if (!r.ok) return json({ error: 'Mapbox no respondió' }, 502);

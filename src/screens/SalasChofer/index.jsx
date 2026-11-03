@@ -930,7 +930,7 @@ export default function SalasChoferScreen({ onVolver }) {
                     }}
                   />
                   <Text style={[styles.solicitudDestino, { flex: 1 }]} numberOfLines={2}>
-                    {NOMBRE_PUNTO_PARTIDA}
+                    {viaje.origen_direccion || NOMBRE_PUNTO_PARTIDA}
                   </Text>
                 </View>
                               
@@ -1048,6 +1048,11 @@ export default function SalasChoferScreen({ onVolver }) {
                   </Text>
                 </View>
               </View>
+              {s.origen_direccion ? (
+                <View style={[styles.chip, { marginBottom: 8 }]}>
+                  <Text style={styles.chipTexto}>{'Recogida: ' + s.origen_direccion}</Text>
+                </View>
+              ) : null}
               <View style={styles.chip}>
                 <Text style={styles.chipTexto}>
                   A {km(s.distancia_max_m)} km del punto de partida

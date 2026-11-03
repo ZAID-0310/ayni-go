@@ -8,6 +8,8 @@ import { nombreDeLugar } from '../../lib/geocoding';
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
 const INTERVALO_MS = 2000;
+// Nombre que se muestra en el campo de partida mientras no se elija otro punto
+const NOMBRE_PUNTO_BASE = 'UTP Villa El Salvador';
 // Identificador de la sesión de búsqueda (agrupa suggest + retrieve)
 const nuevoToken = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -21,6 +23,13 @@ export function usePedirViaje() {
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
   const [comentario, setComentario] = useState('');
+  const [origenElegido, setOrigenElegido] = useState(null); // { lat, lng, lugar } o null = punto base
+  const reqOrigen = useRef(0);
+  // Buscador de partida: null = el campo muestra el nombre del punto actual; texto = el usuario está escribiendo
+  const [consultaOrigen, setConsultaOrigen] = useState(null);
+  const [sugerenciasOrigen, setSugerenciasOrigen] = useState([]);
+  const [buscandoOrigen, setBuscandoOrigen] = useState(false);
+  const sesionOrigen = useRef(nuevoToken());
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const reqDireccion = useRef(0);
   // Viaje activo (lo que devuelve mi_viaje_activo) o null si no hay
@@ -51,6 +60,19 @@ export function usePedirViaje() {
   const [buscando, setBuscando] = useState(false);
   const textoElegido = useRef(null); // evita buscar de nuevo justo después de elegir
   const sesionBusqueda = useRef(nuevoToken());
+  
+  // Ruta de vista previa (antes de pedir el taxi)
+  const [rutaPreview, setRutaPreview] = useState(null);
+  const [calculandoRuta, setCalculandoRuta] = useState(false);
+  const [errorRuta, setErrorRuta] = useState(false);
+  const reqRuta = useRef(0);
+  
+  const [ubicandoGps, setUbicandoGps] = useState(false);
+  // Ubicaciones guardadas del usuario
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [centroInicial, setCentroInicial] = useState(null);
+  const predeterminadaAplicada = useRef(false);
+  const [avisoRespaldo, setAvisoRespaldo] = useState(false);
 
 
     const refrescar = useCallback(async () => {
@@ -283,6 +305,48 @@ export function usePedirViaje() {
   }, [consulta, origen]);
 
 
+// Sugerencias de partida, 400 ms después de dejar de escribir
+useEffect(() => {
+  const texto = (consultaOrigen ?? '').trim();
+  if (!origen || texto.length < 3) {
+    setSugerenciasOrigen([]);
+    return;
+  }
+
+  let vigente = true;
+  const id = setTimeout(async () => {
+    setBuscandoOrigen(true);
+    try {
+      const url =
+        'https://api.mapbox.com/search/searchbox/v1/suggest' +
+        `?q=${encodeURIComponent(texto)}` +
+        `&session_token=${sesionOrigen.current}` +
+        `&proximity=${origen.lng},${origen.lat}` +
+        '&country=pe&language=es&limit=5' +
+        `&access_token=${process.env.EXPO_PUBLIC_MAPBOX_TOKEN}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (!vigente) return;
+      setSugerenciasOrigen(
+        (d.suggestions ?? []).map((s) => ({
+          id: s.mapbox_id,
+          nombre: s.name ?? '',
+          detalle: s.full_address ?? s.place_formatted ?? '',
+        }))
+      );
+    } catch (e) {
+      if (vigente) setSugerenciasOrigen([]);
+    } finally {
+      if (vigente) setBuscandoOrigen(false);
+    }
+  }, 400);
+
+  return () => {
+    vigente = false;
+    clearTimeout(id);
+  };
+}, [consultaOrigen, origen]);
+
 const moverDestino = useCallback(async (lat, lng) => {
   const id = ++reqDireccion.current;
   setDestino((actual) => ({ ...actual, lat, lng, lugar: null }));
@@ -298,6 +362,55 @@ const moverDestino = useCallback(async (lat, lng) => {
   }
 }, []);
 
+
+const moverOrigen = useCallback(async (lat, lng) => {
+  const id = ++reqOrigen.current;
+  setOrigenElegido({ lat, lng, lugar: null });
+  setConsultaOrigen(null);
+  setSugerenciasOrigen([]);
+  try {
+    const nombre = await nombreDeLugar(lat, lng);
+    if (id !== reqOrigen.current) return;
+    setOrigenElegido((a) => (a ? { ...a, lugar: nombre ?? null } : a));
+  } catch {
+    // sin nombre: se puede pedir igual
+  }
+}, []);
+
+const restaurarOrigen = useCallback(() => {
+  setConsultaOrigen(null);
+  setSugerenciasOrigen([]);
+  reqOrigen.current++;
+  setOrigenElegido(null);
+}, []);
+
+// La X del campo de partida: vacía el campo para escribir de nuevo
+const vaciarOrigen = () => {
+  setConsultaOrigen('');
+  setSugerenciasOrigen([]);
+};
+
+const elegirSugerenciaOrigen = async (s) => {
+  try {
+    const url =
+      `https://api.mapbox.com/search/searchbox/v1/retrieve/${s.id}` +
+      `?session_token=${sesionOrigen.current}` +
+      `&access_token=${process.env.EXPO_PUBLIC_MAPBOX_TOKEN}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    const [lng, lat] = d.features[0].geometry.coordinates;
+
+    reqOrigen.current++;
+    setOrigenElegido({ lat, lng, lugar: s.nombre });
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
+    sesionOrigen.current = nuevoToken();
+    return { lat, lng };
+  } catch (e) {
+    setError('No se pudo ubicar ese lugar. Intenta con otro o toca el mapa.');
+    return null;
+  }
+};
 
 const elegirSugerencia = async (s) => {
   try {
@@ -323,6 +436,198 @@ const elegirSugerencia = async (s) => {
   }
 };
 
+
+  // Usa el GPS real del pasajero como punto de partida
+  const usarMiUbicacion = async () => {
+    setError(null);
+    setUbicandoGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Activa el permiso de ubicación para usar tu posición actual.');
+        return null;
+      }
+      const pos = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise((_, rechazar) =>
+          setTimeout(() => rechazar(new Error('timeout GPS')), 10000)
+        ),
+      ]);
+      const { latitude: lat, longitude: lng } = pos.coords;
+      moverOrigen(lat, lng);
+      return { lat, lng };
+    } catch (e) {
+      setError('No se pudo obtener tu ubicación. Revisa que el GPS esté activado.');
+      return null;
+    } finally {
+      setUbicandoGps(false);
+    }
+  };
+
+  const cargarUbicaciones = useCallback(async () => {
+    const { data, error: errorSel } = await supabase
+      .from('ubicaciones_guardadas')
+      .select('id, nombre, direccion, lat, lng, predeterminada')
+      .order('creado_en', { ascending: true });
+    if (errorSel) {
+      console.error('Error al cargar ubicaciones:', errorSel.message);
+      return;
+    }
+    setUbicaciones(data ?? []);
+
+    // La primera vez, la predeterminada pasa a ser el punto de partida
+    if (!predeterminadaAplicada.current) {
+      predeterminadaAplicada.current = true;
+      const p = (data ?? []).find((u) => u.predeterminada);
+      if (p) {
+        reqOrigen.current++;
+        setOrigenElegido({ lat: p.lat, lng: p.lng, lugar: p.nombre });
+        setCentroInicial({ lat: p.lat, lng: p.lng });
+      } else {
+        usarMiUbicacion().then((c) => {
+          if (c) setCentroInicial(c);
+          else setAvisoRespaldo(true);
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarUbicaciones();
+  }, [cargarUbicaciones]);
+
+  const usarUbicacionGuardada = (u) => {
+    reqOrigen.current++;
+    setOrigenElegido({ lat: u.lat, lng: u.lng, lugar: u.nombre });
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
+    return { lat: u.lat, lng: u.lng };
+  };
+
+  // Guarda el punto de partida que está en el mapa en este momento
+  const guardarUbicacion = async (nombre) => {
+    const limpio = (nombre ?? '').trim();
+    if (!limpio) return { ok: false, mensaje: 'Escribe un nombre para la ubicación.' };
+    if (ubicaciones.length >= 10) {
+      return { ok: false, mensaje: 'Máximo 10 ubicaciones guardadas.' };
+    }
+    const o = origenElegido ?? origen;
+    if (!o) return { ok: false, mensaje: 'Todavía no hay un punto de partida.' };
+
+    const { error: errorIns } = await supabase.from('ubicaciones_guardadas').insert({
+      nombre: limpio,
+      direccion: origenElegido ? (origenElegido.lugar ?? null) : NOMBRE_PUNTO_BASE,
+      lat: o.lat,
+      lng: o.lng,
+    });
+    if (errorIns) return { ok: false, mensaje: errorIns.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+    // Guarda un punto elegido en el mapa de "Agregar ubicación"
+  const guardarUbicacionEn = async (nombre, lat, lng) => {
+    const limpio = (nombre ?? '').trim();
+    if (!limpio) return { ok: false, mensaje: 'Escribe un nombre para la ubicación.' };
+    if (lat == null || lng == null) {
+      return { ok: false, mensaje: 'Toca el mapa para elegir el punto.' };
+    }
+    if (ubicaciones.length >= 10) {
+      return { ok: false, mensaje: 'Máximo 10 ubicaciones guardadas.' };
+    }
+    let direccion = null;
+    try {
+      direccion = (await nombreDeLugar(lat, lng)) ?? null;
+    } catch {
+      // sin dirección: se guarda igual
+    }
+    const { error: errorIns } = await supabase
+      .from('ubicaciones_guardadas')
+      .insert({ nombre: limpio, direccion, lat, lng });
+    if (errorIns) return { ok: false, mensaje: errorIns.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+  const borrarUbicacion = async (id) => {
+    const { error: errorDel } = await supabase
+      .from('ubicaciones_guardadas')
+      .delete()
+      .eq('id', id);
+    if (errorDel) return { ok: false, mensaje: errorDel.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+  const alternarPredeterminada = async (u) => {
+    const r = u.predeterminada
+      ? await supabase
+          .from('ubicaciones_guardadas')
+          .update({ predeterminada: false })
+          .eq('id', u.id)
+      : await supabase.rpc('marcar_ubicacion_predeterminada', { p_id: u.id });
+    if (r.error) return { ok: false, mensaje: r.error.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+
+
+    const limpiarRuta = useCallback(() => {
+    reqRuta.current++;
+    setRutaPreview(null);
+    setCalculandoRuta(false);
+    setErrorRuta(false);
+  }, []);
+
+  // Traza la ruta partida → destino SIN pedir chofer
+  const trazarRuta = async () => {
+    if (!destino) return;
+    const id = ++reqRuta.current;
+    const o = origenElegido ?? origen;
+    setRutaPreview(null);
+    setErrorRuta(false);
+    setCalculandoRuta(true);
+
+    let data = null;
+    let errorFn = null;
+    for (let intento = 0; intento < 3; intento++) {
+      if (intento > 0) {
+        await supabase.auth.refreshSession();
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      if (id !== reqRuta.current) return; // cambió el destino: se descarta
+      const r = await supabase.functions.invoke('ruta-preview', {
+        body: {
+          lat: destino.lat,
+          lng: destino.lng,
+          origen_lat: o?.lat,
+          origen_lng: o?.lng,
+        },
+      });
+      data = r.data;
+      errorFn = r.error;
+      if (!errorFn && data?.geometry) break;
+    }
+    if (id !== reqRuta.current) return;
+    if (errorFn || !data?.geometry) {
+          let detalle = '';
+      try {
+        detalle = await errorFn?.context?.text?.();
+      } catch {}
+      console.error(
+        'No se pudo trazar la ruta:',
+        errorFn?.message ?? data?.error,
+        'STATUS:', errorFn?.context?.status,
+        'CUERPO:', detalle
+      );
+      setErrorRuta(true);
+    } else {
+      setRutaPreview(data);
+    }
+    setCalculandoRuta(false);
+  };
+
   const pedirViaje = async () => {
     setError(null);
 
@@ -338,6 +643,13 @@ const elegirSugerencia = async (s) => {
       p_direccion:
         [destino.lugar, destino.direccion].filter(Boolean).join(' — ') || null,
         p_comentario: comentario.trim() || null,
+              ...(origenElegido
+        ? {
+            p_origen_lat: origenElegido.lat,
+            p_origen_lng: origenElegido.lng,
+            p_origen_direccion: origenElegido.lugar ?? null,
+          }
+        : {}),
     });
 
     if (errorRpc) {
@@ -371,9 +683,27 @@ const elegirSugerencia = async (s) => {
     setCargando(false);
   };
 
-    const reiniciarPedido = () => {
+  const reiniciarPedido = () => {
+    limpiarRuta();
+    predeterminadaAplicada.current = false;
+    cargarUbicaciones();
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
     setDestino(null);
     setComentario('');
+    setOrigenElegido(null);
+    setConsulta('');
+    setSugerencias([]);
+    textoElegido.current = null;
+  };
+
+
+  // Limpia solo el destino y su búsqueda (no toca la recogida ni el comentario)
+  const limpiarDestino = () => {
+    limpiarRuta();
+    reqDireccion.current++;
+    setBuscandoDireccion(false);
+    setDestino(null);
     setConsulta('');
     setSugerencias([]);
     textoElegido.current = null;
@@ -392,10 +722,25 @@ const elegirSugerencia = async (s) => {
   // Una vez que el viaje arrancó ya no se puede cancelar
   const puedeCancelar = !!viaje && viaje.estado !== 'en_curso';
 
+  // Lo que muestra el campo de partida
+  const textoOrigen =
+    consultaOrigen ??
+    (origenElegido ? (origenElegido.lugar ?? 'Punto elegido en el mapa') : NOMBRE_PUNTO_BASE);
+
   return {
     origen,
     destino, setDestino,
     comentario, setComentario,
+    origenElegido,
+    moverOrigen,
+    restaurarOrigen,
+    textoOrigen,
+    consultaOrigen,
+    setConsultaOrigen,
+    sugerenciasOrigen,
+    buscandoOrigen,
+    vaciarOrigen,
+    elegirSugerenciaOrigen,
     viaje,
     cargando,
     cargandoInicial,
@@ -416,11 +761,28 @@ const elegirSugerencia = async (s) => {
     elegirSugerencia,
     moverDestino,
     buscandoDireccion,
+    limpiarDestino,
     resumen,
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
     choferEnVivo,
     miUbicacion,
+    rutaPreview,
+    calculandoRuta,
+    errorRuta,
+    trazarRuta,
+    limpiarRuta,
+    usarMiUbicacion,
+    ubicandoGps,
+    ubicaciones,
+    centroInicial,
+    usarUbicacionGuardada,
+    guardarUbicacion,
+    guardarUbicacionEn,
+    borrarUbicacion,
+    alternarPredeterminada,
+    avisoRespaldo,
+    cerrarAvisoRespaldo: () => setAvisoRespaldo(false),
   };
 }
