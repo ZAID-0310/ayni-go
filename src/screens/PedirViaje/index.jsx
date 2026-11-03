@@ -18,6 +18,7 @@ import {
   StatusBar,
   Modal,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
@@ -507,6 +508,13 @@ export default function PedirViajeScreen({
   const [fase, setFase] = useState('origen'); // 'origen' → 'destino' → 'ruta'
   const [tecladoAlto, setTecladoAlto] = useState(0);
   const [ubicModalAbierto, setUbicModalAbierto] = useState(false);
+  const [notaAbierta, setNotaAbierta] = useState(false);
+    const [detalleTexto, setDetalleTexto] = useState('');
+  const [errorModal, setErrorModal] = useState(false);
+
+  useEffect(() => {
+    if (error) setErrorModal(true);
+  }, [error]);
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [mensajeUbic, setMensajeUbic] = useState(null);
   const [mapaUbicAbierto, setMapaUbicAbierto] = useState(false);
@@ -842,6 +850,27 @@ export default function PedirViajeScreen({
             ) : null}
 
             {error ? <Text style={styles.textoError}>{error}</Text> : null}
+
+                        {enCurso ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  borderWidth: 1.5,
+                  borderColor: '#B91C1C',
+                  marginTop: 12,
+                }}
+                onPress={() => Linking.openURL('tel:105').catch(() => {})}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call-outline" size={20} color="#B91C1C" />
+                <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Emergencia: llamar al 105</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Cancelar */}
             {puedeCancelar && !confirmandoCancelar ? (
@@ -1234,18 +1263,9 @@ export default function PedirViajeScreen({
               },
             ]}
           >
-            {fase === 'origen' ? (
+                        {false ? (
               <View style={styles.destinoCard}>
-                <Text style={styles.panelTitulo}>🟢 Punto de partida</Text>
-                <Text style={styles.dato} numberOfLines={2}>
-                  {textoOrigen}
-                </Text>
-              </View>
-            ) : null}
-
-            {fase !== 'origen' && (destino || error) ? (
-              <View style={styles.destinoCard}>
-                {destino ? (
+                {fase === 'ruta' && destino ? (
                   <>
                     <Text style={styles.panelTitulo}>📍 Destino elegido</Text>
                     <Text style={styles.dato} numberOfLines={2}>
@@ -1253,20 +1273,6 @@ export default function PedirViajeScreen({
                         ? 'Buscando dirección…'
                         : (destino.lugar ?? 'Punto elegido en el mapa')}
                     </Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Detalle extra (opcional): ej. frente al parque"
-                      placeholderTextColor="#888"
-                      onChangeText={cambiarReferencia}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Comentario para el chofer (opcional)"
-                      placeholderTextColor="#888"
-                      value={comentario}
-                      onChangeText={setComentario}
-                      maxLength={200}
-                    />
                   </>
                 ) : null}
                 {error ? <Text style={styles.textoError}>{error}</Text> : null}
@@ -1314,26 +1320,138 @@ export default function PedirViajeScreen({
               </TouchableOpacity>
             ) : null}
 
-            {fase === 'ruta' && rutaPreview ? (
-              <TouchableOpacity
-                style={[styles.boton, (cargando || buscandoDireccion) && styles.botonDeshabilitado]}
-                onPress={pedirViaje}
-                disabled={cargando || buscandoDireccion}
-                activeOpacity={0.8}
-              >
-                {cargando ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="car-outline" size={22} color="#fff" style={styles.botonIcono} />
-                    <Text style={styles.botonTexto}>Solicitar taxi</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                        {fase === 'ruta' && rutaPreview ? (
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.boton,
+                    { flex: 1 },
+                    (cargando || buscandoDireccion) && styles.botonDeshabilitado,
+                  ]}
+                  onPress={pedirViaje}
+                  disabled={cargando || buscandoDireccion}
+                  activeOpacity={0.8}
+                >
+                  {cargando ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="car-outline" size={22} color="#fff" style={styles.botonIcono} />
+                      <Text style={styles.botonTexto}>Solicitar taxi</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    width: 56,
+                    alignSelf: 'stretch',
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: VERDE,
+                    backgroundColor: '#fff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => {
+                    setDetalleTexto(destino?.direccion ?? '');
+                    setNotaAbierta(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={24} color={VERDE} />
+                </TouchableOpacity>
+              </View>
             ) : null}
           </View>
         </>
       ) : null}
+
+            <Modal
+        visible={notaAbierta}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNotaAbierta(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setNotaAbierta(false)}
+          />
+                    <View
+            style={{
+              backgroundColor: '#fff',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: 16,
+              paddingBottom: 16 + (tecladoAlto > 0 ? tecladoAlto : insets.bottom),
+            }}
+          >
+            <Text style={styles.panelTitulo}>Notas para el chofer</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Detalle extra (opcional): ej. frente al parque"
+              placeholderTextColor="#888"
+              value={detalleTexto}
+              onChangeText={(t) => {
+                setDetalleTexto(t);
+                cambiarReferencia(t);
+              }}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Comentario para el chofer (opcional)"
+              placeholderTextColor="#888"
+              value={comentario}
+              onChangeText={setComentario}
+              maxLength={200}
+            />
+            <TouchableOpacity
+              style={styles.boton}
+              onPress={() => setNotaAbierta(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.botonTexto}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+            <Modal
+        visible={errorModal && !!error}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'center',
+            paddingHorizontal: 24,
+          }}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+            <Text style={styles.panelTitulo}>No se pudo completar</Text>
+            <Text style={[styles.dato, { marginBottom: 16 }]}>
+              {error?.message ?? String(error)}
+            </Text>
+            <TouchableOpacity
+              style={styles.boton}
+              onPress={() => setErrorModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.botonTexto}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {!mapaListo ? (
         <View style={styles.cargandoMapa}>
