@@ -10,9 +10,9 @@ const nuevoToken = () =>
 
 // Elegir un destino: tocar el mapa o buscar por texto.
 // Mismo comportamiento que en Pedir viaje, sin pedir nada al servidor.
-export function useElegirDestino() {
+export function useElegirDestino(destinoInicial = null) {
   const [origen, setOrigen] = useState(null);
-  const [destino, setDestino] = useState(null); // { lat, lng, lugar, direccion }
+    const [destino, setDestino] = useState(destinoInicial); // { lat, lng, lugar, direccion }
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const [consulta, setConsulta] = useState('');
   const [sugerencias, setSugerencias] = useState([]);

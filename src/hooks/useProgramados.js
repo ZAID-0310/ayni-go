@@ -91,7 +91,7 @@ export function useProgramados() {
 
   const eliminar = (id) => ejecutar('eliminar_programado', { p_id: id });
 
-    const guardar = ({ lat, lng, direccion, etiqueta, horaTxt, comentario }) => {
+    const guardar = ({ lat, lng, direccion, etiqueta, horaTxt, comentario, fecha }) => {
     const hora = parseHora(horaTxt);
     if (!hora) {
       Alert.alert('Hora inválida', 'Escribe la hora como HH:MM, por ejemplo 07:30');
@@ -104,8 +104,27 @@ export function useProgramados() {
       p_etiqueta: etiqueta,
       p_hora: hora,
       p_comentario: comentario?.trim() || null,
+      p_fecha: fecha || null,
     });
   };
 
-    return { lista, cargando, trabajando, cargar, activar, cambiarHora, cancelar, eliminar, guardar };
+      const actualizar = ({ id, lat, lng, direccion, etiqueta, horaTxt, comentario, fecha }) => {
+    const hora = parseHora(horaTxt);
+    if (!hora) {
+      Alert.alert('Hora inválida', 'Escribe la hora como HH:MM, por ejemplo 07:30');
+      return Promise.resolve(false);
+    }
+    return ejecutar('actualizar_programado', {
+      p_id: id,
+      p_lat: lat,
+      p_lng: lng,
+      p_direccion: direccion,
+      p_etiqueta: etiqueta,
+      p_hora: hora,
+      p_comentario: comentario?.trim() || null,
+      p_fecha: fecha || null,
+    });
+  };
+
+  return { lista, cargando, trabajando, cargar, activar, cambiarHora, cancelar, eliminar, guardar, actualizar };
 }

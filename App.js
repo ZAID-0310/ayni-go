@@ -73,6 +73,7 @@ function AppContenido() {
   const [pantalla, setPantalla] = useState('bienvenida');
   const [rolElegido, setRolElegido] = useState(null); // 'pasajero' | 'chofer'
   const [perfil, setPerfil] = useState(null);
+  const [viajeEditar, setViajeEditar] = useState(null); // viaje programado que se está editando
 
   const [restaurando, setRestaurando] = useState(true);
 
@@ -240,7 +241,14 @@ function AppContenido() {
       <ProgramadosScreen
         onVolver={() => setPantalla('home')}
         onIrAlViaje={() => setPantalla('pedirViaje')}
-        onNuevo={() => setPantalla('programadoNuevo')}
+          onNuevo={() => {
+          setViajeEditar(null);
+          setPantalla('programadoNuevo');
+        }}
+        onEditar={(p) => {
+          setViajeEditar(p);
+          setPantalla('programadoNuevo');
+        }}
       />
     );
   }
@@ -261,6 +269,7 @@ function AppContenido() {
   if (pantalla === 'programadoNuevo') {
     return (
       <ProgramadoNuevoScreen
+        viaje={viajeEditar}
         onVolver={() => setPantalla('programados')}
         onGuardado={() => setPantalla('programados')}
       />

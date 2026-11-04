@@ -21,8 +21,8 @@ const ETIQUETA_ESTADO = {
   cancelado: 'Cancelado',
 };
 
-export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
-    const { lista, cargando, trabajando, activar, cambiarHora, cancelar, eliminar } = useProgramados();
+export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo, onEditar }) {
+      const { lista, cargando, trabajando, activar, cancelar, eliminar } = useProgramados();
 
   // Qué tarjeta tiene el campo de hora abierto, y para qué
     const insets = useSafeAreaInsets();
@@ -43,10 +43,7 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
 
   const confirmarHora = async () => {
     if (!editando) return;
-    const ok =
-      editando.modo === 'activar'
-        ? await activar(editando.id, horaTxt)
-        : await cambiarHora(editando.id, horaTxt);
+    const ok = await activar(editando.id, horaTxt);
     if (ok) setEditando(null);
   };
 
@@ -133,12 +130,9 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo }) {
                       <Text style={styles.btnPrincipalText}>Ver mi viaje</Text>
                     </TouchableOpacity>
                   )}
-                  {p.estado === 'pendiente' && (
-                    <TouchableOpacity
-                      style={styles.btnOutline}
-                      onPress={() => abrirHora(p.id, 'cambiar')}
-                    >
-                      <Text style={styles.btnOutlineText}>Cambiar hora</Text>
+                  {p.estado === 'pendiente' && onEditar && (
+                    <TouchableOpacity style={styles.btnOutline} onPress={() => onEditar(p)}>
+                      <Text style={styles.btnOutlineText}>Editar</Text>
                     </TouchableOpacity>
                   )}
                   {(p.estado === 'vencido' || p.estado === 'cancelado') && (
