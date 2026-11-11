@@ -763,15 +763,18 @@ export default function SalasChoferScreen({ onVolver }) {
                 styles.btn,
                 styles.btnPrimario,
                 { flex: 0, marginBottom: 12 },
-                procesando && { opacity: 0.6 },
+                (procesando || !viaje.ruta) && { opacity: 0.6 },
               ]}
               onPress={iniciarViaje}
-              disabled={procesando}
+              disabled={procesando || !viaje.ruta}
               activeOpacity={0.8}
             >
               <Text style={styles.btnTexto}>
-                Iniciar viaje ({viaje.pasajeros}{' '}
-                {viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'})
+                {viaje.ruta
+                  ? `Iniciar viaje (${viaje.pasajeros} ${
+                      viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'
+                    })`
+                  : 'Trazando ruta…'}
               </Text>
             </TouchableOpacity>
           ) : null}

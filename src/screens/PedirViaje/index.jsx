@@ -430,6 +430,9 @@ export default function PedirViajeScreen({
   onIrAVehiculo,
   onIrADocumentos,
   onIrACalificaciones,
+  onIrAObjetosPerdidos,
+  onIrASeguridad,
+  onIrASoporte,
   onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
@@ -482,6 +485,8 @@ export default function PedirViajeScreen({
     avisoCancelado,
     cerrarAviso,
     choferEnVivo,
+    mostrarAvisoCerca,
+    cerrarAvisoCerca,
     miUbicacion,
     usarMiUbicacion,
     ubicandoGps,
@@ -656,6 +661,117 @@ export default function PedirViajeScreen({
 
     return (
       <View style={styles.viajeContenedor}>
+      <Modal
+          visible={mostrarAvisoCerca && enCurso}
+          transparent
+          animationType="fade"
+          onRequestClose={cerrarAvisoCerca}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              justifyContent: 'center',
+              paddingHorizontal: 24,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 24,
+                padding: 24,
+                alignItems: 'center',
+                borderTopWidth: 6,
+                borderTopColor: '#F58220',
+              }}
+            >
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: '#FDE9D3',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                }}
+              >
+                <Ionicons name="notifications" size={44} color="#F58220" />
+              </View>
+
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: '800',
+                  color: VERDE,
+                  textAlign: 'center',
+                }}
+              >
+                ¡Ya casi llegas!
+              </Text>
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: '#444',
+                  textAlign: 'center',
+                  marginTop: 6,
+                  marginBottom: 18,
+                }}
+              >
+                Estás cerca de tu destino. Antes de bajar, revisa que no olvides nada.
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-around',
+                  alignSelf: 'stretch',
+                  backgroundColor: '#FAF7EE',
+                  borderRadius: 16,
+                  paddingVertical: 14,
+                  marginBottom: 22,
+                }}
+              >
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>📱</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Celular</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>🎒</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Mochila</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>👛</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Cartera</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>🎧</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Otros</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  alignSelf: 'stretch',
+                  backgroundColor: VERDE,
+                  borderRadius: 14,
+                  paddingVertical: 16,
+                }}
+                onPress={cerrarAvisoCerca}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>
+                  Ya revisé, tengo todo
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
         {/* Mapa a pantalla completa en la parte de arriba */}
         {origen && destinoViaje?.lat != null ? (
           <MapaRuta
@@ -1452,7 +1568,6 @@ export default function PedirViajeScreen({
           </View>
         </View>
       </Modal>
-
       {!mapaListo ? (
         <View style={styles.cargandoMapa}>
           <ActivityIndicator size="large" color={VERDE} />
@@ -1715,6 +1830,9 @@ export default function PedirViajeScreen({
         onIrAVehiculo={onIrAVehiculo}
         onIrADocumentos={onIrADocumentos}
         onIrACalificaciones={onIrACalificaciones}
+        onIrAObjetosPerdidos={onIrAObjetosPerdidos}
+        onIrASeguridad={onIrASeguridad}
+        onIrASoporte={onIrASoporte}
         onIrASalasChofer={onIrASalasChofer}
         onIrAProgramados={onIrAProgramados}
         onIrAProgramadosChofer={onIrAProgramadosChofer}

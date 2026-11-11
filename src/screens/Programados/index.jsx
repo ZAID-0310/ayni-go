@@ -138,7 +138,7 @@ export default function ProgramadosScreen({ onVolver, onIrAlViaje, onNuevo, onEd
                   {(p.estado === 'vencido' || p.estado === 'cancelado') && (
                     <TouchableOpacity
                       style={styles.btnPrincipalChico}
-                      onPress={() => abrirHora(p.id, 'activar')}
+                      onPress={() => onEditar(p)}
                     >
                       <Text style={styles.btnPrincipalText}>Activar</Text>
                     </TouchableOpacity>

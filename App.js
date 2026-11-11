@@ -9,6 +9,11 @@ import HomeScreen from './src/screens/Home';
 import VehicleScreen from './src/screens/Vehicle';
 import DocumentsScreen from './src/screens/Documents';
 import CalificacionesScreen from './src/screens/Calificaciones';
+import ObjetosPerdidosScreen from './src/screens/ObjetosPerdidos';
+import SeguridadScreen from './src/screens/Seguridad';
+import SoporteScreen from './src/screens/Soporte';
+import PreguntasFrecuentesScreen from './src/screens/PreguntasFrecuentes';
+import RespuestaFAQScreen from './src/screens/RespuestaFAQ';
 import PedirViajeScreen from './src/screens/PedirViaje';
 import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
@@ -73,7 +78,8 @@ function AppContenido() {
   const [pantalla, setPantalla] = useState('bienvenida');
   const [rolElegido, setRolElegido] = useState(null); // 'pasajero' | 'chofer'
   const [perfil, setPerfil] = useState(null);
-  const [viajeEditar, setViajeEditar] = useState(null); // viaje programado que se está editando
+  const [viajeEditar, setViajeEditar] = useState(null);
+  const [faqId, setFaqId] = useState(null); // viaje programado que se está editando
 
   const [restaurando, setRestaurando] = useState(true);
 
@@ -85,6 +91,11 @@ function AppContenido() {
       vehiculo: 'cuenta',
       documentos: 'home',
       calificaciones: 'home',
+      objetosPerdidos: 'home',
+      seguridad: 'home',
+      soporte: 'home',
+      faq: 'soporte',
+      faqRespuesta: 'faq',
       salasChofer: 'home',
       pedirViaje: 'home',
       programados: 'home',
@@ -228,12 +239,45 @@ function AppContenido() {
         return <CalificacionesScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
   }
 
+    if (pantalla === 'soporte') {
+    return (
+      <SoporteScreen
+        onVolver={() => setPantalla('home')}
+        onIrAFaq={() => setPantalla('faq')}
+      />
+    );
+  }
+
+  if (pantalla === 'faq') {
+    return (
+      <PreguntasFrecuentesScreen
+        onVolver={() => setPantalla('soporte')}
+        onElegir={(id) => {
+          setFaqId(id);
+          setPantalla('faqRespuesta');
+        }}
+      />
+    );
+  }
+
+  if (pantalla === 'faqRespuesta') {
+    return <RespuestaFAQScreen faqId={faqId} onVolver={() => setPantalla('faq')} />;
+  }
+
+  if (pantalla === 'seguridad') {
+    return <SeguridadScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
+  }
+
+  if (pantalla === 'objetosPerdidos') {
+    return <ObjetosPerdidosScreen onVolver={() => setPantalla('home')} />;
+  }
+
   if (pantalla === 'salasChofer') {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
   if (pantalla === 'pedirViaje') {
-    return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} onIrACalificaciones={() => setPantalla('calificaciones')} />;
+    return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} onIrACalificaciones={() => setPantalla('calificaciones')} onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')} onIrASeguridad={() => setPantalla('seguridad')} onIrASoporte={() => setPantalla('soporte')} />;
   }
 
   if (pantalla === 'programados') {
@@ -295,6 +339,9 @@ function AppContenido() {
         onIrAVehiculo={() => setPantalla('vehiculo')}
         onIrADocumentos={() => setPantalla('documentos')}
         onIrACalificaciones={() => setPantalla('calificaciones')}
+        onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')} 
+        onIrASeguridad={() => setPantalla('seguridad')} 
+        onIrASoporte={() => setPantalla('soporte')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}
         onIrAProgramados={() => setPantalla('programados')}

@@ -164,6 +164,10 @@ export function usePedirViaje() {
     (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso') &&
     !viaje.mi_destino?.bajo;
 
+  // Solo comparto mi GPS mientras espero/recojo; en viaje en curso ya voy en el carro
+  const compartirMiPosicion =
+    seguirViaje && viaje.estado === 'abierta_con_chofer';
+
   // Posición del chofer, leída cada 4 s
   const { chofer: choferEnVivo } = useUbicacionesSala(
     seguirViaje ? viaje.sala_id : null,
@@ -172,7 +176,7 @@ export function usePedirViaje() {
 
   // Mi ping al servidor cada 6 s (solo con la app abierta)
   useEffect(() => {
-    if (!seguirViaje) return;
+    if (!compartirMiPosicion) return;
     let cancelado = false;
 
         const enviar = async () => {
@@ -214,12 +218,60 @@ export function usePedirViaje() {
       clearInterval(id);
       setMiUbicacion(null);
     };
-  }, [seguirViaje]);
+    }, [compartirMiPosicion]);
 
   // El destino del viaje: el que acaba de elegir, o el que devuelve mi_viaje_activo
   const destinoViaje = destino ?? viaje?.mi_destino ?? null;
   const dLat = destinoViaje?.lat;
   const dLng = destinoViaje?.lng;
+
+  // Aviso de cercanía al destino: una vez por sala, solo en viaje en curso
+  const RADIO_AVISO_BAJADA_M = 100000;
+  const [avisoCercaSala, setAvisoCercaSala] = useState(null);
+    const [mostrarAvisoCerca, setMostrarAvisoCerca] = useState(false);
+
+  // Si el viaje no está en curso, el aviso se apaga (evita valores viejos)
+  useEffect(() => {
+    if (!hayViaje || viaje?.estado !== 'en_curso') setMostrarAvisoCerca(false);
+  }, [hayViaje, viaje?.estado]);
+
+  useEffect(() => {
+        console.log('AVISO_CERCA datos:', {
+      hayViaje,
+      estado: viaje?.estado,
+      chofer: choferEnVivo,
+      dLat,
+      dLng,
+      bajo: viaje?.mi_destino?.bajo,
+      avisoCercaSala,
+    });
+    if (!hayViaje || viaje?.estado !== 'en_curso' || !choferEnVivo) return;
+    if (!Number.isFinite(dLat) || !Number.isFinite(dLng)) return;
+    if (viaje?.mi_destino?.bajo || avisoCercaSala === viaje?.sala_id) return;
+
+    const rad = (g) => (g * Math.PI) / 180;
+    const a =
+      Math.sin(rad(dLat - choferEnVivo.lat) / 2) ** 2 +
+      Math.cos(rad(choferEnVivo.lat)) *
+        Math.cos(rad(dLat)) *
+        Math.sin(rad(dLng - choferEnVivo.lng) / 2) ** 2;
+    const metros = 2 * 6371000 * Math.asin(Math.sqrt(a));
+
+        console.log('AVISO_CERCA metros:', Math.round(metros));
+    if (metros <= RADIO_AVISO_BAJADA_M) {
+      setAvisoCercaSala(viaje.sala_id);
+      setMostrarAvisoCerca(true);
+    }
+  }, [
+    hayViaje,
+    viaje?.estado,
+    viaje?.sala_id,
+    viaje?.mi_destino?.bajo,
+    choferEnVivo,
+    dLat,
+    dLng,
+    avisoCercaSala,
+  ]);
 
   // Pide la ruta UNA vez por destino, en cuanto hay viaje activo
   useEffect(() => {
@@ -767,6 +819,8 @@ const elegirSugerencia = async (s) => {
     avisoCancelado,
     cerrarAviso,
     choferEnVivo,
+    mostrarAvisoCerca,
+    cerrarAvisoCerca: () => setMostrarAvisoCerca(false),
     miUbicacion,
     rutaPreview,
     calculandoRuta,
