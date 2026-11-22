@@ -32,6 +32,7 @@ import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
 import estilosUbic from './UbicacionesGuardadas.styles';
 import useBuscadorLugar from '../../hooks/useBuscadorLugar';
+import usePosicionAnimada from '../../hooks/usePosicionAnimada';
 import { nombreDeLugar } from '../../../lib/geocoding';
 
 
@@ -139,8 +140,9 @@ function PinParada({ parada }) {
   );
 }
 
-function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer, miUbicacion, style }) {
+function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer: choferCrudo, miUbicacion, style }) {
   const camara = useRef(null);
+  const chofer = usePosicionAnimada(choferCrudo);
 
   // ruta_sala llega como texto JSON
   const coordsSala = useMemo(() => {
@@ -253,29 +255,33 @@ function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer, miUbicacio
         </Mapbox.ShapeSource>
       ) : null}
 
-            {chofer ? (
-        <Mapbox.ShapeSource
-          id="choferEnVivo"
-          shape={{
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [chofer.lng, chofer.lat] },
-            properties: {},
-          }}
-        >
-          <Mapbox.CircleLayer
-            id="choferHalo"
-            style={{ circleRadius: 18, circleColor: VERDE, circleOpacity: 0.2 }}
-          />
-          <Mapbox.CircleLayer
-            id="choferPunto"
-            style={{
-              circleRadius: 8,
-              circleColor: VERDE,
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 3,
+      {chofer ? (
+        <>
+          <Mapbox.Images
+            images={{
+              carroDer: require('../../../assets/carro_taxi_der.png'),
+              carroIzq: require('../../../assets/carro_taxi_izq.png'),
             }}
           />
-        </Mapbox.ShapeSource>
+          <Mapbox.ShapeSource
+            id="choferEnVivo"
+            shape={{
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [chofer.lng, chofer.lat] },
+              properties: { icono: (chofer.rumbo ?? 0) < 180 ? 'carroDer' : 'carroIzq' },
+            }}
+          >
+            <Mapbox.SymbolLayer
+              id="choferCarro"
+              style={{
+                iconImage: ['get', 'icono'],
+                iconSize: 0.35,
+                iconAllowOverlap: true,
+                iconIgnorePlacement: true,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        </>
       ) : null}
 
             {miUbicacion ? (
@@ -957,11 +963,33 @@ export default function PedirViajeScreen({
             {viaje.chofer ? (
               <View style={styles.tarjeta}>
                 <Text style={styles.tarjetaTitulo}>TU CHOFER ASIGNADO</Text>
-                <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
-                <Text style={styles.datoChoferDetalle}>
-                  🚗 {viaje.chofer.modelo} ·{' '}
-                  <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
-                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Image
+                    source={require('../../../assets/carro_taxi_izq.png')}
+                    style={{ width: 88, height: 67 }}
+                    resizeMode="contain"
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
+                    <Text style={styles.datoChoferDetalle}>{viaje.chofer.modelo}</Text>
+                    <View
+                      style={{
+                        alignSelf: 'flex-start',
+                        marginTop: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 3,
+                        borderRadius: 6,
+                        borderWidth: 1.5,
+                        borderColor: '#1F2937',
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <Text style={{ fontWeight: '800', letterSpacing: 1.5, color: '#1F2937' }}>
+                        {viaje.chofer.placa}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               </View>
             ) : null}
 

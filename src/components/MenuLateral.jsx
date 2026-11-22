@@ -39,6 +39,7 @@ export default function MenuLateral({
   onIrACalificaciones,
   onIrAObjetosPerdidos,
   onIrASeguridad,
+  onIrASaldo,
   onIrASoporte,
   onCerrarSesion,
 }) {
@@ -76,6 +77,7 @@ export default function MenuLateral({
     ? [
         { label: 'Mis documentos', icono: 'document-text-outline', accion: onIrADocumentos },
         { label: 'Calificaciones', icono: 'star-outline', accion: onIrACalificaciones },
+        { label: 'Mi saldo', icono: 'wallet-outline', accion: onIrASaldo },
         { label: 'Seguridad', icono: 'shield-checkmark-outline', accion: onIrASeguridad },
         { label: 'Ayuda y soporte', icono: 'headset-outline', accion: onIrASoporte },
         { label: 'Configuración', icono: 'settings-outline' },

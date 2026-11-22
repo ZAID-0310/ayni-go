@@ -11,7 +11,9 @@ import DocumentsScreen from './src/screens/Documents';
 import CalificacionesScreen from './src/screens/Calificaciones';
 import ObjetosPerdidosScreen from './src/screens/ObjetosPerdidos';
 import SeguridadScreen from './src/screens/Seguridad';
+import SaldoScreen from './src/screens/Saldo';
 import SoporteScreen from './src/screens/Soporte';
+import ChatSoporteScreen from './src/screens/ChatSoporte';
 import PreguntasFrecuentesScreen from './src/screens/PreguntasFrecuentes';
 import RespuestaFAQScreen from './src/screens/RespuestaFAQ';
 import PedirViajeScreen from './src/screens/PedirViaje';
@@ -93,8 +95,10 @@ function AppContenido() {
       calificaciones: 'home',
       objetosPerdidos: 'home',
       seguridad: 'home',
+      saldo: 'home',
       soporte: 'home',
       faq: 'soporte',
+      chatSoporte: 'soporte',
       faqRespuesta: 'faq',
       salasChofer: 'home',
       pedirViaje: 'home',
@@ -244,8 +248,13 @@ function AppContenido() {
       <SoporteScreen
         onVolver={() => setPantalla('home')}
         onIrAFaq={() => setPantalla('faq')}
+        onIrAChat={() => setPantalla('chatSoporte')}
       />
     );
+  }
+
+  if (pantalla === 'chatSoporte') {
+    return <ChatSoporteScreen onVolver={() => setPantalla('soporte')} />;
   }
 
   if (pantalla === 'faq') {
@@ -262,6 +271,10 @@ function AppContenido() {
 
   if (pantalla === 'faqRespuesta') {
     return <RespuestaFAQScreen faqId={faqId} onVolver={() => setPantalla('faq')} />;
+  }
+
+    if (pantalla === 'saldo') {
+    return <SaldoScreen onVolver={() => setPantalla('home')} />;
   }
 
   if (pantalla === 'seguridad') {
@@ -339,8 +352,9 @@ function AppContenido() {
         onIrAVehiculo={() => setPantalla('vehiculo')}
         onIrADocumentos={() => setPantalla('documentos')}
         onIrACalificaciones={() => setPantalla('calificaciones')}
-        onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')} 
-        onIrASeguridad={() => setPantalla('seguridad')} 
+        onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')}
+        onIrASeguridad={() => setPantalla('seguridad')}
+        onIrASaldo={() => setPantalla('saldo')}
         onIrASoporte={() => setPantalla('soporte')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}

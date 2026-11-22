@@ -226,7 +226,7 @@ export function usePedirViaje() {
   const dLng = destinoViaje?.lng;
 
   // Aviso de cercanía al destino: una vez por sala, solo en viaje en curso
-  const RADIO_AVISO_BAJADA_M = 100000;
+  const RADIO_AVISO_BAJADA_M = 300;
   const [avisoCercaSala, setAvisoCercaSala] = useState(null);
     const [mostrarAvisoCerca, setMostrarAvisoCerca] = useState(false);
 
@@ -695,6 +695,8 @@ const elegirSugerencia = async (s) => {
       p_direccion:
         [destino.lugar, destino.direccion].filter(Boolean).join(' — ') || null,
         p_comentario: comentario.trim() || null,
+        p_distancia_ruta_m:
+          rutaPreview?.distancia_m != null ? Math.round(rutaPreview.distancia_m) : null,
               ...(origenElegido
         ? {
             p_origen_lat: origenElegido.lat,

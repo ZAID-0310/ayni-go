@@ -21,13 +21,14 @@ export default function SeguridadScreen({ onVolver, perfil }) {
   const esChofer = perfil?.rol === 'chofer';
 
   // Lo que cuenta para la verificación
-  const requisitos = [
-    {
+    const requisitos = [];
+  if (!esChofer) {
+    requisitos.push({
       titulo: 'Correo institucional',
       detalle: perfil?.email || 'Sin correo registrado',
       ok: !!perfil?.email,
-    },
-  ];
+    });
+  }
   if (esChofer) {
     requisitos.push({
       titulo: 'Documentos aprobados',
@@ -37,17 +38,56 @@ export default function SeguridadScreen({ onVolver, perfil }) {
       ok: !!perfil?.chofer_verificado,
     });
   }
-  const completo = requisitos.every((r) => r.ok);
+    requisitos.push({
+    titulo: 'Foto de perfil',
+    detalle: perfil?.foto_url
+      ? 'Tus compañeros de ruta pueden reconocerte'
+      : 'Es obligatoria. Agrégala desde tu cuenta',
+    ok: !!perfil?.foto_url,
+  });
+      const completo = requisitos.every((r) => r.ok);
 
-  const recomendados = [
-    {
-      titulo: 'Foto de perfil',
-      detalle: perfil?.foto_url
-        ? 'Tus compañeros de ruta pueden reconocerte'
-        : 'Agrégala desde tu cuenta para que te reconozcan',
-      ok: !!perfil?.foto_url,
-    },
-  ];
+  const consejos = esChofer
+    ? [
+        {
+          icono: 'location-outline',
+          titulo: 'Mantén tu ubicación activada',
+          detalle: 'Así los pasajeros te ven llegar y el viaje se registra bien.',
+        },
+        {
+          icono: 'wallet-outline',
+          titulo: 'Revisa tu saldo',
+          detalle: 'Necesitas un saldo mínimo para aceptar viajes nuevos. Míralo en «Mi saldo».',
+        },
+        {
+          icono: 'cash-outline',
+          titulo: 'Registra el pago al bajar',
+          detalle: 'Marca si el pasajero pagó, para que el resumen del viaje quede correcto.',
+        },
+      ]
+    : [
+        {
+          icono: 'location-outline',
+          titulo: 'Activa tu ubicación',
+          detalle: 'Mientras esperas, el chofer te encuentra mejor en tu punto de partida.',
+        },
+        {
+          icono: 'cash-outline',
+          titulo: 'Paga directamente al chofer',
+          detalle: 'La app no procesa pagos. Al bajar, el chofer registra el pago.',
+        },
+        {
+          icono: 'alert-circle-outline',
+          titulo: 'Tienes un botón de emergencia',
+          detalle: 'Durante el viaje en curso aparece en la tarjeta inferior de tu pantalla.',
+        },
+        {
+          icono: 'bag-handle-outline',
+          titulo: '¿Olvidaste algo?',
+          detalle: 'Usa «Reportar objeto perdido» en el menú lateral.',
+        },
+      ];
+
 
   const fila = (r, recomendado) => (
     <View key={r.titulo} style={styles.fila}>
@@ -95,10 +135,20 @@ export default function SeguridadScreen({ onVolver, perfil }) {
         </View>
 
         <Text style={styles.seccion}>REQUISITOS</Text>
-        {requisitos.map((r) => fila(r, false))}
+                {requisitos.map((r) => fila(r, false))}
 
         <Text style={styles.seccion}>RECOMENDADO</Text>
-        {recomendados.map((r) => fila(r, true))}
+        {consejos.map((c) => (
+          <View key={c.titulo} style={styles.fila}>
+            <Ionicons name={c.icono} size={26} color={VERDE} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.filaTitulo}>{c.titulo}</Text>
+              <Text style={styles.filaDetalle}>{c.detalle}</Text>
+            </View>
+          </View>
+        ))}
+
+        
       </ScrollView>
     </SafeAreaView>
   );

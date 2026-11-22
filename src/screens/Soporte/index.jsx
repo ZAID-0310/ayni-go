@@ -15,7 +15,7 @@ const CREMA = '#FAF7EE';
 const VERDE_SUAVE = '#DCEBDD';
 const STATUS_BAR = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
-export default function SoporteScreen({ onVolver, onIrAFaq }) {
+export default function SoporteScreen({ onVolver, onIrAFaq, onIrAChat }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={[styles.header, { paddingTop: STATUS_BAR + 8 }]}>
@@ -44,7 +44,7 @@ export default function SoporteScreen({ onVolver, onIrAFaq }) {
           <Ionicons name="chevron-forward" size={20} color={VERDE} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.opcion} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.opcion} onPress={onIrAChat} activeOpacity={0.8}>
           <View style={styles.icono}>
             <Ionicons name="chatbubbles-outline" size={28} color={VERDE} />
           </View>

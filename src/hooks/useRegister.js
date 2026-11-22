@@ -6,6 +6,8 @@ export function useRegister({ rol, onRegistroExitoso }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const telefonoLimpio = telefono.replace(/[^0-9]/g, '');
   const [otp, setOtp] = useState('');
   const [etapa, setEtapa] = useState('formulario');
   const [loading, setLoading] = useState(false);
@@ -19,6 +21,11 @@ export function useRegister({ rol, onRegistroExitoso }) {
       Alert.alert('Falta el tipo de cuenta', 'Vuelve atrás y elige si eres pasajero o chofer.');
       return;
     }
+        if (!/^9[0-9]{8}$/.test(telefonoLimpio)) {
+            Alert.alert('Número no válido', 'Ingresa tu celular de 9 dígitos (empieza con 9).');
+      return;
+    }
+
     if (password.length < 6) {
       Alert.alert('Contraseña muy corta', 'Debe tener al menos 6 caracteres.');
       return;
@@ -87,6 +94,7 @@ export function useRegister({ rol, onRegistroExitoso }) {
       nombre: nombre.trim(),
       email: email.trim().toLowerCase(),
       rol,
+      telefono: telefonoLimpio,
     });
 
     setLoading(false);
@@ -107,6 +115,7 @@ export function useRegister({ rol, onRegistroExitoso }) {
     email, setEmail,
     password, setPassword,
     otp, setOtp,
+    telefono, setTelefono,
     etapa, setEtapa,
     loading,
     enviarCodigo,

@@ -26,6 +26,7 @@ export default function HomeScreen({
   onIrACalificaciones,
   onIrAObjetosPerdidos,
   onIrASeguridad,
+  onIrASaldo,
   onIrASoporte,
   onIrASalasChofer,
   onIrAProgramados,
@@ -115,6 +116,7 @@ export default function HomeScreen({
           onIrACalificaciones={onIrACalificaciones}
           onIrAObjetosPerdidos={onIrAObjetosPerdidos} 
           onIrASeguridad={onIrASeguridad} 
+          onIrASaldo={onIrASaldo}
           onIrASoporte={onIrASoporte}
           onCerrarSesion={cerrarSesion}
         />
