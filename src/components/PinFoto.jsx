@@ -5,6 +5,7 @@ import { View, Image, Text } from 'react-native';
 // el color del tramo en el borde y la punta. Úsalo dentro de un
 // Mapbox.PointAnnotation con anchor={{ x: 0.5, y: 1 }}.
 // `onCargada`: llámalo para redibujar el pin cuando la imagen termina de cargar.
+// gola
 export default function PinFoto({ uri, orden, color = '#0F5132', resaltado = false, atenuado = false, onCargada }) {
   const [fallo, setFallo] = useState(false);
   const tam = resaltado ? 50 : 42;
