@@ -8,7 +8,15 @@ module.exports = ({ config }) => ({
       'POST_NOTIFICATIONS',
     ],
   },
-  plugins: [
+    plugins: [
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#FAF7EE',
+        image: './assets/logo-texto.png',
+        imageWidth: 220,
+      },
+    ],
     [
       '@rnmapbox/maps',
       {

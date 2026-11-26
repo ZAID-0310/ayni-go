@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
 import { useCalificaciones } from '../../hooks/useCalificaciones';
 import ModalCalificar from '../../components/ModalCalificar';
+import ResumenViajeChofer from '../../components/ResumenViajeChofer';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
 import PinInicio from '../../components/PinInicio';
 import PinFoto from '../../components/PinFoto';
@@ -553,7 +554,29 @@ export default function SalasChoferScreen({ onVolver }) {
         ? 'No pudimos obtener tu ubicación. Activa la ubicación del dispositivo para recibir solicitudes.'
         : null;
 
-  // ---------- Resumen del viaje terminado ----------
+  // ---------- Resumen del viaje terminado (nuevo diseño) ----------
+  if (resumen) {
+    return (
+      <>
+        <ResumenViajeChofer
+          resumen={resumen}
+          textoPago={TEXTO_PAGO}
+          onCerrar={cerrarYVolver}
+        />
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
+      </>
+    );
+  }
+
+  // ---------- Resumen del viaje terminado (diseño anterior, sin uso) ----------
   if (resumen) {
     const lista = resumen.pasajeros ?? [];
     return (

@@ -36,7 +36,15 @@ export default function PinInicio({ color = '#0F5132' }) {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 10, fontWeight: '800', color }}>INICIO</Text>
+          <Text
+            style={{ fontSize: 9, fontWeight: '800', color }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            allowFontScaling={false}
+          >
+            INICIO
+          </Text>
         </View>
       </View>
     </View>

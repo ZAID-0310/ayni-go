@@ -318,6 +318,7 @@ export function usePedirViaje() {
   useEffect(() => {
     const texto = consulta.trim();
     if (!origen || texto.length < 3 || texto === textoElegido.current) {
+      setBuscando(false);
       setSugerencias([]);
       return;
     }
@@ -402,11 +403,16 @@ useEffect(() => {
 const moverDestino = useCallback(async (lat, lng) => {
   const id = ++reqDireccion.current;
   setDestino((actual) => ({ ...actual, lat, lng, lugar: null }));
+  setConsulta('');
   setBuscandoDireccion(true);
   try {
     const nombre = await nombreDeLugar(lat, lng);
     if (id !== reqDireccion.current) return; // el puntero ya se movió
-    setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+        setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+    if (nombre) {
+      textoElegido.current = nombre;
+      setConsulta(nombre);
+    }
   } catch {
     // sin nombre: el viaje se puede pedir igual
   } finally {
@@ -489,8 +495,38 @@ const elegirSugerencia = async (s) => {
 };
 
 
+  // Lee el GPS con varios intentos (red o GPS lentos) antes de rendirse
+  const leerGpsConReintentos = async () => {
+    const intentos = [
+      { accuracy: Location.Accuracy.Balanced, ms: 8000 },
+      { accuracy: Location.Accuracy.Balanced, ms: 12000 },
+      { accuracy: Location.Accuracy.Low, ms: 15000 },
+    ];
+    for (let i = 0; i < intentos.length; i++) {
+      try {
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: intentos[i].accuracy }),
+          new Promise((_, rechazar) =>
+            setTimeout(() => rechazar(new Error('timeout GPS')), intentos[i].ms)
+          ),
+        ]);
+        console.log('UBICACION intento', i + 1, 'ok');
+        return pos;
+      } catch (e) {
+        console.log('UBICACION intento', i + 1, 'fallo:', e?.message);
+      }
+    }
+    // Último recurso: la última posición conocida, si es de hace menos de 5 min
+    const ultima = await Location.getLastKnownPositionAsync({ maxAge: 300000 });
+    if (ultima) {
+      console.log('UBICACION usando ultima conocida');
+      return ultima;
+    }
+    throw new Error('GPS sin respuesta');
+  };
+
   // Usa el GPS real del pasajero como punto de partida
-  const usarMiUbicacion = async () => {
+  const usarMiUbicacion = async (marca = null) => {
     setError(null);
     setUbicandoGps(true);
     try {
@@ -500,12 +536,16 @@ const elegirSugerencia = async (s) => {
         return null;
       }
       const pos = await Promise.race([
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        leerGpsConReintentos(),
         new Promise((_, rechazar) =>
-          setTimeout(() => rechazar(new Error('timeout GPS')), 10000)
+          setTimeout(() => rechazar(new Error('timeout GPS')), 40000)
         ),
       ]);
       const { latitude: lat, longitude: lng } = pos.coords;
+      // Si mientras tanto el usuario eligió otro punto, no se lo pisa
+      if (marca !== null && reqOrigen.current !== marca) {
+        return { lat, lng, omitido: true };
+      }
       moverOrigen(lat, lng);
       return { lat, lng };
     } catch (e) {
@@ -535,12 +575,14 @@ const elegirSugerencia = async (s) => {
         reqOrigen.current++;
         setOrigenElegido({ lat: p.lat, lng: p.lng, lugar: p.nombre });
         setCentroInicial({ lat: p.lat, lng: p.lng });
-      } else {
-        usarMiUbicacion().then((c) => {
-          if (c) setCentroInicial(c);
-          else setAvisoRespaldo(true);
-        });
       }
+      // Prioridad A: siempre se intenta la ubicación actual; la predeterminada
+      // queda como punto provisional y como respaldo si el GPS falla
+      const marca = reqOrigen.current;
+      usarMiUbicacion(marca).then((c) => {
+        if (!c) setAvisoRespaldo(true);
+        else if (!c.omitido) setCentroInicial(c);
+      });
     }
   }, []);
 
@@ -689,6 +731,7 @@ const elegirSugerencia = async (s) => {
     }
 
     setCargando(true);
+    try {
     const { error: errorRpc } = await supabase.rpc('pedir_viaje', {
       p_lat: destino.lat,
       p_lng: destino.lng,
@@ -712,8 +755,18 @@ const elegirSugerencia = async (s) => {
       return;
     }
 
-    await refrescar();
-    setCargando(false);
+        console.log('PEDIR rpc ok');
+    try {
+      await refrescar();
+    } catch (e) {
+      console.log('PEDIR refrescar fallo:', e?.message);
+    }
+    } catch (e) {
+      console.log('PEDIR fallo:', e?.message);
+      setError('No se pudo enviar tu pedido. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   // Cancelar en dos pasos: primero se pide confirmar, luego se ejecuta
@@ -726,17 +779,24 @@ const elegirSugerencia = async (s) => {
 
   const confirmarCancelar = async () => {
     setCargando(true);
-    cancelacionPropia.current = true;
+       cancelacionPropia.current = true;
+    try {
     const { error: errorRpc } = await supabase.rpc('cancelar_pedido');
     if (errorRpc) {
       cancelacionPropia.current = false;
       setError(errorRpc.message);
     }
-    setConfirmandoCancelar(false);
+        setConfirmandoCancelar(false);
     await refrescar();
-    setCargando(false);
+    } catch (e) {
+      console.log('CANCELAR fallo:', e?.message);
+      cancelacionPropia.current = false;
+      setError('No se pudo cancelar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setCargando(false);
+    }
   };
-
+  
   const reiniciarPedido = () => {
     limpiarRuta();
     predeterminadaAplicada.current = false;
@@ -840,5 +900,11 @@ const elegirSugerencia = async (s) => {
     alternarPredeterminada,
     avisoRespaldo,
     cerrarAvisoRespaldo: () => setAvisoRespaldo(false),
+    reintentarUbicacion: async () => {
+      setAvisoRespaldo(false);
+      const c = await usarMiUbicacion();
+      if (c) setCentroInicial(c);
+      else setAvisoRespaldo(true);
+    },
   };
 }

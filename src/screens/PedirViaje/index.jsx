@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCalificaciones } from '../../hooks/useCalificaciones';
 import ModalCalificar from '../../components/ModalCalificar';
+import ResumenViajeNuevo from '../../components/ResumenViaje';
 
 import {
   View,
@@ -469,6 +470,7 @@ export default function PedirViajeScreen({
     origenElegido,
     avisoRespaldo,
     cerrarAvisoRespaldo,
+    reintentarUbicacion,
     moverOrigen,
     restaurarOrigen,
     rutaPreview,
@@ -631,7 +633,7 @@ export default function PedirViajeScreen({
   if (resumen) {
     return (
       <>
-        <ResumenViaje
+        <ResumenViajeNuevo
           resumen={resumen}
           onCerrar={() => { cal.cerrar(); cerrarResumen(); }}
         />
@@ -1621,10 +1623,23 @@ export default function PedirViajeScreen({
               { paddingBottom: 16 + insets.bottom },
             ]}
           >
-            <Text style={estilosUbic.titulo}>No pudimos ubicarte</Text>
+            <Text style={estilosUbic.titulo}>Tu ubicación está tardando</Text>
             <Text style={estilosUbic.filaDetalle}>
-              Estamos usando la UTP como punto de partida de respaldo, no tu ubicación actual.
-              Activa el GPS o elige tu punto en el mapa.
+              Tu señal o tu GPS responden lento. Mientras tanto usamos un punto de respaldo, no tu ubicación actual.
+              Activa el GPS, reintenta o elige tu punto en el mapa.
+            </Text>
+            <TouchableOpacity
+              style={estilosUbic.fila}
+              onPress={reintentarUbicacion}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-circle" size={22} color={VERDE} />
+              <View style={estilosUbic.filaInfo}>
+                <Text style={estilosUbic.filaNombre}>Reintentar</Text>
+              </View>
+            </TouchableOpacity>
+            <Text style={estilosUbic.filaDetalle}>
+              O sigue con el punto de respaldo.
             </Text>
             <TouchableOpacity
               style={estilosUbic.fila}

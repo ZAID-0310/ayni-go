@@ -26,6 +26,7 @@ import CuentaScreen from './src/screens/Cuenta';
 import RecuperarClaveScreen from './src/screens/RecuperarClave';
 import BarraInferior from './src/components/BarraInferior';
 import { detenerUbicacionSegundoPlano } from './src/tasks/ubicacionSegundoPlano';
+import * as SplashScreen from 'expo-splash-screen';
 
 const TABS_PASAJERO = [
   { id: 'inicio', label: 'Inicio', icono: 'home' },
@@ -51,6 +52,9 @@ const TAB_DE_PANTALLA = {
 
 // Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
 Appearance.setColorScheme('light');
+
+// Mantiene el splash visible hasta saber si hay sesión guardada
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 
 export default function App() {
@@ -85,7 +89,17 @@ function AppContenido() {
 
   const [restaurando, setRestaurando] = useState(true);
 
-  const ultimoAtras = useRef(0);
+   const ultimoAtras = useRef(0);
+
+  // Oculta el splash al terminar de restaurar la sesión (tope de 6 s por si la red es lenta)
+  useEffect(() => {
+    if (!restaurando) {
+      SplashScreen.hideAsync().catch(() => {});
+      return;
+    }
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 6000);
+    return () => clearTimeout(t);
+  }, [restaurando]);
 
   // Botón atrás del celular: retrocede una pantalla; en Inicio/Bienvenida pide pulsar dos veces para salir
   useEffect(() => {
