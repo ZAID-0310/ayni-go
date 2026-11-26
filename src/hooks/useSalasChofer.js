@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import {
   iniciarUbicacionSegundoPlano,
@@ -80,14 +81,19 @@ export function useSalasChofer() {
   useEffect(() => {
     let activo = true;
     let id = null;
+    let suscripcion = null;
 
     const enviarPing = async () => {
             // Se envía siempre: el ping normal respalda a la tarea de segundo plano
       try {
+        const reciente = await Location.getLastKnownPositionAsync({ maxAge: 60000 }).catch(() => null);
+        if (reciente && activo) {
+          setMiUbicacion({ lat: reciente.coords.latitude, lng: reciente.coords.longitude });
+        }
         let coords = null;
         try {
           const pos = await conTimeout(
-            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+                        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
             8000
           );
           coords = pos.coords;
@@ -106,6 +112,11 @@ export function useSalasChofer() {
 
         console.log('PING coords', coords.latitude, coords.longitude);
         if (activo) setMiUbicacion({ lat: coords.latitude, lng: coords.longitude });
+        // Con la tarea de segundo plano activa, este ping solo envía si la lectura es buena
+        if (segundoPlanoRef.current && (coords.accuracy == null || coords.accuracy > 50)) {
+          if (activo) setErrorUbicacion(null);
+          return;
+        }
         const { error } = await supabase.rpc('chofer_ping', {
           p_lat: coords.latitude,
           p_lng: coords.longitude,
@@ -131,11 +142,18 @@ export function useSalasChofer() {
       if (!activo) return;
       refrescar(); // ya con ubicación, pedir las solicitudes sin esperar los 5 s
       id = setInterval(enviarPing, PING_MS);
+      suscripcion = AppState.addEventListener('change', (estado) => {
+        if (estado === 'active') {
+          enviarPing();
+          refrescar();
+        }
+      });
     })();
 
     return () => {
       activo = false;
       if (id) clearInterval(id);
+      suscripcion?.remove();
     };
   }, [refrescar]);
 
@@ -189,11 +207,49 @@ export function useSalasChofer() {
   };
 
   // Calcula y guarda la ruta real de la sala. No se espera: si falla, queda la línea recta
-  const calcularRuta = (salaId) => {
-    supabase.functions
-      .invoke('ruta-sala', { body: { sala_id: salaId } })
-      .catch(() => {});
+    const calcularRuta = async (salaId) => {
+    for (let intento = 1; intento <= 3; intento++) {
+      const { data: sesion } = await supabase.auth.getSession();
+      const token = sesion?.session?.access_token;
+      const { error } = await supabase.functions.invoke('ruta-sala', {
+        body: { sala_id: salaId },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!error) {
+        console.log('RUTA-SALA ok, intento', intento);
+        return true;
+      }
+      const status = error.context?.status;
+      let cuerpo = '';
+      try {
+        cuerpo = await error.context.text();
+      } catch {}
+      console.log('RUTA-SALA intento', intento, 'STATUS:', status, 'CUERPO:', cuerpo || error.message);
+      if (status && status !== 401) return false; // otros errores no se reintentan
+      await supabase.auth.refreshSession().catch(() => {});
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return false;
   };
+
+  // Red de seguridad: si la sala activa sigue sin ruta, reintenta cada 6 s (máx. 3 veces)
+  const salaSinRuta = hayViajeActivo && !viaje?.ruta ? viaje.sala_id : null;
+  const intentosRuta = useRef({ sala: null, n: 0 });
+  useEffect(() => {
+    if (!salaSinRuta) return undefined;
+    if (intentosRuta.current.sala !== salaSinRuta) {
+      intentosRuta.current = { sala: salaSinRuta, n: 0 };
+    }
+        const id = setInterval(() => {
+      if (intentosRuta.current.n >= 3 || intentosRuta.current.corriendo) return;
+      intentosRuta.current.n += 1;
+      intentosRuta.current.corriendo = true;
+      calcularRuta(salaSinRuta).finally(() => {
+        intentosRuta.current.corriendo = false;
+      });
+    }, 6000);
+    return () => clearInterval(id);
+  }, [salaSinRuta]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const aceptarSala = async (salaId) => {
     const ok = await ejecutar('aceptar_sala', { p_sala_id: salaId });

@@ -11,17 +11,29 @@ const TaskManager = requireOptionalNativeModule('ExpoTaskManager')
   ? require('expo-task-manager')
   : null;
 
+  
+// Lecturas con peor precisión que esto se descartan, salvo que lleve mucho sin enviar nada
+const PRECISION_MAX_M = 50;
+const ESPERA_MAX_MS = 30000;
+let ultimoEnvio = Date.now();
+
+
 if (TaskManager) {
   // Esta tarea sigue corriendo aunque el chofer abra Waze o Google Maps
   TaskManager.defineTask(TAREA_UBICACION, async ({ data, error }) => {
-    if (error || !data?.locations?.length) return;
-    const { latitude, longitude } = data.locations[data.locations.length - 1].coords;
+  if (error || !data?.locations?.length) return;
+    const { latitude, longitude, accuracy } = data.locations[data.locations.length - 1].coords;
+    const ahora = Date.now();
+    // GPS aún sin afinar: no se envía, salvo que lleve más de 30 s sin enviar nada
+    if (accuracy != null && accuracy > PRECISION_MAX_M && ahora - ultimoEnvio < ESPERA_MAX_MS) return;
     try {
       const { data: sesion } = await supabase.auth.getSession(); // refresca el token si hace falta
       if (!sesion?.session) return;
-      await supabase.rpc('chofer_ping', { p_lat: latitude, p_lng: longitude });
+      const { error: errorPing } = await supabase.rpc('chofer_ping', { p_lat: latitude, p_lng: longitude });
+      if (errorPing) console.log('CHOFER_PING error:', errorPing.message);
+      else ultimoEnvio = ahora;
     } catch (e) {
-      // se reintenta en la siguiente lectura
+      console.log('CHOFER_PING fallo:', e?.message); // se reintenta en la siguiente lectura
     }
   });
 }
@@ -49,6 +61,7 @@ export async function iniciarUbicacionSegundoPlano() {
 
     const yaCorre = await Location.hasStartedLocationUpdatesAsync(TAREA_UBICACION);
     if (!yaCorre) {
+      ultimoEnvio = Date.now();
       await Location.startLocationUpdatesAsync(TAREA_UBICACION, {
         accuracy: Location.Accuracy.High,
         timeInterval: 5000,

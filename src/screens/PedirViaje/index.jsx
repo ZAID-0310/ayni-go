@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useCalificaciones } from '../../hooks/useCalificaciones';
+import ModalCalificar from '../../components/ModalCalificar';
+import ResumenViajeNuevo from '../../components/ResumenViaje';
 
 import {
   View,
@@ -10,16 +13,28 @@ import {
   ScrollView,
   SafeAreaView,
   Animated,
+  PanResponder,
   Image,
   Platform,
   StatusBar,
+  Modal,
+  StyleSheet,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MenuLateral from '../../components/MenuLateral';
+import PinInicio from '../../components/PinInicio';
+import PinFin from '../../components/PinFin';
+import PinFoto from '../../components/PinFoto';
+import Avatar from '../../components/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { usePedirViaje } from '../../hooks/usePedirViaje';
 import styles from './PedirViajeScreen.styles';
+import estilosUbic from './UbicacionesGuardadas.styles';
+import useBuscadorLugar from '../../hooks/useBuscadorLugar';
+import usePosicionAnimada from '../../hooks/usePosicionAnimada';
+import { nombreDeLugar } from '../../../lib/geocoding';
 
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
@@ -33,17 +48,143 @@ const TEXTO_ESTADO = {
   en_curso: 'Viaje en curso',
 };
 
-function Marcador({ icono, estiloPunto }) {
+
+// Distancia aproximada en metros entre dos puntos [lng, lat]
+const distM = (a, b) => {
+  const dx = (a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180) * 111320;
+  const dy = (a[1] - b[1]) * 110574;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+// Corta los tramos en la posición del chofer: lo recorrido queda aparte.
+// Solo busca hacia adelante (desdeIdx) y no corta si está a más de toleranciaM de la ruta.
+function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
+  const todas = [];
+  tramos.forEach((t, k) => t.coordenadas.forEach((c, j) => todas.push({ c, k, j })));
+  if (todas.length === 0) return { restantes: tramos, recorrido: null, idx: 0 };
+
+  let idx = Math.min(desdeIdx, todas.length - 1);
+  if (pos) {
+    let mejor = -1;
+    let min = Infinity;
+    for (let i = idx; i < todas.length; i++) {
+      const d = distM(todas[i].c, [pos.lng, pos.lat]);
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    }
+    if (mejor >= 0 && min <= toleranciaM) idx = mejor;
+  }
+  if (idx === 0) return { restantes: tramos, recorrido: null, idx };
+
+  const corte = todas[idx];
+  const restantes = tramos
+    .map((t, k) => {
+      if (k < corte.k) return null;
+      return k === corte.k ? { ...t, coordenadas: t.coordenadas.slice(corte.j) } : t;
+    })
+    .filter((t) => t && t.coordenadas.length >= 2);
+  const recorrido = todas.slice(0, idx + 1).map((x) => x.c);
+  return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
+}
+
+// Un color por tramo (igual que en el mapa del chofer)
+const COLORES_TRAMO = ['#EA580C', '#7C3AED', '#0D9488', '#DB2777'];
+const colorDeOrden = (orden) => COLORES_TRAMO[(Math.max(1, orden) - 1) % COLORES_TRAMO.length];
+
+// Parte la ruta en tramos: origen → parada 1 → parada 2 → ...
+function partirRuta(coordenadas, paradas) {
+  if (!coordenadas?.length || !paradas?.length) return [];
+  const masCercano = (p) => {
+    let mejor = 0;
+    let min = Infinity;
+    coordenadas.forEach(([lng, lat], i) => {
+      const d = (lng - p.lng) ** 2 + (lat - p.lat) ** 2;
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    });
+    return mejor;
+  };
+  const ordenadas = [...paradas].sort((a, b) => a.orden - b.orden);
+  let desde = 0;
+  return ordenadas.map((p, k) => {
+    let hasta = masCercano(p);
+    if (k === ordenadas.length - 1) hasta = coordenadas.length - 1;
+    if (hasta <= desde) hasta = Math.min(desde + 1, coordenadas.length - 1);
+    const tramo = { orden: p.orden, color: colorDeOrden(p.orden), coordenadas: coordenadas.slice(desde, hasta + 1) };
+    desde = hasta;
+    return tramo;
+  });
+}
+
+// Pin de una parada; al cargar la foto se redibuja (Android la deja vacía la primera vez)
+function PinParada({ parada }) {
+  const ref = useRef(null);
   return (
-    <View style={{ alignItems: 'center', width: 40 }}>
-      <Text style={{ fontSize: 22, lineHeight: 28 }}>{icono}</Text>
-      <View style={estiloPunto} />
-    </View>
+    <Mapbox.PointAnnotation
+      ref={ref}
+      id={`parada-${parada.orden}`}
+      coordinate={[parada.lng, parada.lat]}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <PinFoto
+        uri={parada.foto_url}
+        orden={parada.orden}
+        color={colorDeOrden(parada.orden)}
+        resaltado={!!parada.es_mia}
+        onCargada={() => ref.current?.refresh()}
+      />
+    </Mapbox.PointAnnotation>
   );
 }
 
-function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
+function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer: choferCrudo, miUbicacion, style }) {
   const camara = useRef(null);
+  const chofer = usePosicionAnimada(choferCrudo);
+
+  // ruta_sala llega como texto JSON
+  const coordsSala = useMemo(() => {
+    try {
+      const g = typeof rutaSala === 'string' ? JSON.parse(rutaSala) : rutaSala;
+      return g?.coordinates?.length >= 2 ? g.coordinates : null;
+    } catch {
+      return null;
+    }
+  }, [rutaSala]);
+
+  const paradasValidas = (paradas ?? []).filter((p) => p.orden != null);
+  const paradasKey = paradasValidas.map((p) => `${p.orden}:${p.lat}:${p.lng}`).join('|');
+  const paradasPines = paradasValidas.filter((p) => !p.bajo);
+
+  // Ruta cortada según el avance del chofer
+  const coordsRuta = coordsSala ?? ruta?.geometry?.coordinates;
+  const rutaClave = coordsRuta?.length
+    ? `${coordsRuta.length}|${coordsRuta[0][0]}|${coordsRuta[coordsRuta.length - 1][0]}`
+    : '';
+  const tramos = useMemo(() => {
+    if (!coordsRuta || coordsRuta.length < 2) return [];
+    if (coordsSala && paradasValidas.length > 0) {
+      const t = partirRuta(coordsSala, paradasValidas).filter((x) => x.coordenadas.length >= 2);
+      if (t.length > 0) return t;
+    }
+    return [{ orden: 0, color: VERDE, coordenadas: coordsRuta }];
+  }, [rutaClave, paradasKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+  const avance = useRef(0);
+  const tramosPrevios = useRef(null);
+  const corte = useMemo(() => {
+    if (tramosPrevios.current !== tramos) {
+      tramosPrevios.current = tramos; // ruta nueva: el avance vuelve a empezar
+      avance.current = 0;
+    }
+    const r = recortarTramos(tramos, chofer, avance.current);
+    avance.current = r.idx;
+    return r;
+  }, [tramos, chofer]);
 
    // Clave estable: solo cambia si cambian los puntos o la ruta de verdad,
   // no cada vez que el refresco del viaje crea objetos nuevos.
@@ -82,15 +223,31 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
         }}
       />
 
-      {ruta?.geometry ? (
+            {tramos.length > 0 ? (
         <Mapbox.ShapeSource
           id="rutaPreview"
-          shape={{ type: 'Feature', geometry: ruta.geometry, properties: {} }}
+          shape={{
+            type: 'FeatureCollection',
+            features: [
+              ...(corte.recorrido
+                ? [{
+                    type: 'Feature',
+                    properties: { color: '#C9C5B8' },
+                    geometry: { type: 'LineString', coordinates: corte.recorrido },
+                  }]
+                : []),
+              ...corte.restantes.map((t) => ({
+                type: 'Feature',
+                properties: { color: t.color },
+                geometry: { type: 'LineString', coordinates: t.coordenadas },
+              })),
+            ],
+          }}
         >
           <Mapbox.LineLayer
             id="rutaLinea"
             style={{
-              lineColor: '#F58220',
+              lineColor: ['get', 'color'],
               lineWidth: 5,
               lineCap: 'round',
               lineJoin: 'round',
@@ -99,29 +256,33 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
         </Mapbox.ShapeSource>
       ) : null}
 
-            {chofer ? (
-        <Mapbox.ShapeSource
-          id="choferEnVivo"
-          shape={{
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [chofer.lng, chofer.lat] },
-            properties: {},
-          }}
-        >
-          <Mapbox.CircleLayer
-            id="choferHalo"
-            style={{ circleRadius: 18, circleColor: VERDE, circleOpacity: 0.2 }}
-          />
-          <Mapbox.CircleLayer
-            id="choferPunto"
-            style={{
-              circleRadius: 8,
-              circleColor: VERDE,
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 3,
+      {chofer ? (
+        <>
+          <Mapbox.Images
+            images={{
+              carroDer: require('../../../assets/carro_taxi_der.png'),
+              carroIzq: require('../../../assets/carro_taxi_izq.png'),
             }}
           />
-        </Mapbox.ShapeSource>
+          <Mapbox.ShapeSource
+            id="choferEnVivo"
+            shape={{
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [chofer.lng, chofer.lat] },
+              properties: { icono: (chofer.rumbo ?? 0) < 180 ? 'carroDer' : 'carroIzq' },
+            }}
+          >
+            <Mapbox.SymbolLayer
+              id="choferCarro"
+              style={{
+                iconImage: ['get', 'icono'],
+                iconSize: 0.35,
+                iconAllowOverlap: true,
+                iconIgnorePlacement: true,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        </>
       ) : null}
 
             {miUbicacion ? (
@@ -150,15 +311,18 @@ function MapaRuta({ origen, destino, ruta, chofer, miUbicacion, style }) {
       ) : null}
 
       <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
-        <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
+        <PinInicio />
       </Mapbox.PointAnnotation>
-      {destino ? (
+        {paradasPines.map((p) => (
+      <PinParada key={p.orden} parada={p} />
+      ))}
+      {destino && paradasValidas.length === 0 ? (
         <Mapbox.PointAnnotation
           id="destinoViaje"
           coordinate={[destino.lng, destino.lat]}
           anchor={{ x: 0.5, y: 1 }}
         >
-          <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
+        <PinFin />
         </Mapbox.PointAnnotation>
       ) : null}
     </Mapbox.MapView>
@@ -272,6 +436,10 @@ export default function PedirViajeScreen({
   perfil,
   onIrAVehiculo,
   onIrADocumentos,
+  onIrACalificaciones,
+  onIrAObjetosPerdidos,
+  onIrASeguridad,
+  onIrASoporte,
   onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
@@ -298,20 +466,114 @@ export default function PedirViajeScreen({
     destino,
     setDestino,
     moverDestino,
+    comentario,
+    origenElegido,
+    avisoRespaldo,
+    cerrarAvisoRespaldo,
+    reintentarUbicacion,
+    moverOrigen,
+    restaurarOrigen,
+    rutaPreview,
+    calculandoRuta,
+    errorRuta,
+    trazarRuta,
+    limpiarRuta,
+    textoOrigen,
+    consultaOrigen,
+    setConsultaOrigen,
+    sugerenciasOrigen,
+    buscandoOrigen,
+    vaciarOrigen,
+    elegirSugerenciaOrigen,
+    setComentario,
     buscandoDireccion,
+    limpiarDestino,
     resumen,
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
-      choferEnVivo,
-      miUbicacion,
+    choferEnVivo,
+    mostrarAvisoCerca,
+    cerrarAvisoCerca,
+    miUbicacion,
+    usarMiUbicacion,
+    ubicandoGps,
+    ubicaciones,
+    centroInicial,
+    usarUbicacionGuardada,
+    guardarUbicacion,
+    guardarUbicacionEn,
+    borrarUbicacion,
+    alternarPredeterminada,
   } = usePedirViaje();
+
+  const cal = useCalificaciones();
+
+    useEffect(() => {
+      if (resumen?.sala_id) cal.abrir(resumen.sala_id);
+  }, [resumen?.sala_id]);
 
   const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
-    const [mapaListo, setMapaListo] = useState(false);
+  const destinoInputRef = useRef(null);
+  const [mapaListo, setMapaListo] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [fase, setFase] = useState('origen'); // 'origen' → 'destino' → 'ruta'
   const [tecladoAlto, setTecladoAlto] = useState(0);
+  const [ubicModalAbierto, setUbicModalAbierto] = useState(false);
+  const [notaAbierta, setNotaAbierta] = useState(false);
+    const [detalleTexto, setDetalleTexto] = useState('');
+  const [errorModal, setErrorModal] = useState(false);
+
+  useEffect(() => {
+    if (error) setErrorModal(true);
+  }, [error]);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [mensajeUbic, setMensajeUbic] = useState(null);
+  const [mapaUbicAbierto, setMapaUbicAbierto] = useState(false);
+  const [puntoNuevo, setPuntoNuevo] = useState(null);
+  const [guardandoUbic, setGuardandoUbic] = useState(false);
+  const camaraUbicRef = useRef(null);
+  const nombreManual = useRef(false);
+  const reqNombreUbic = useRef(0);
+  const buscadorUbic = useBuscadorLugar(origenElegido ?? origen);
+
+  // Tarjeta deslizable: solo la rayita se arrastra
+  const ASOMA = 90; // lo que queda visible al bajarla
+  const alturaSheet = useRef(0);
+  const sheetY = useRef(new Animated.Value(0)).current;
+  const colapsado = useRef(false);
+
+  const maxBajada = () => Math.max(0, alturaSheet.current - ASOMA);
+  const moverSheet = (abajo) => {
+    colapsado.current = abajo;
+    Animated.spring(sheetY, {
+      toValue: abajo ? maxBajada() : 0,
+      useNativeDriver: true,
+      bounciness: 0,
+    }).start();
+  };
+
+  const panSheet = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, g) => {
+        const base = colapsado.current ? maxBajada() : 0;
+        sheetY.setValue(Math.min(maxBajada(), Math.max(0, base + g.dy)));
+      },
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 5 && Math.abs(g.dy) < 5) {
+          moverSheet(!colapsado.current); // un toque la alterna
+        } else if (g.dy > 40) {
+          moverSheet(true);
+        } else if (g.dy < -40) {
+          moverSheet(false);
+        } else {
+          moverSheet(colapsado.current);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     const mostrar = Keyboard.addListener('keyboardDidShow', (e) =>
@@ -325,6 +587,32 @@ export default function PedirViajeScreen({
       ocultar.remove();
     };
   }, []);
+
+    useEffect(() => {
+    if (!centroInicial || !mapaListo) return;
+    camaraRef.current?.setCamera({
+      centerCoordinate: [centroInicial.lng, centroInicial.lat],
+      zoomLevel: 15,
+      animationDuration: 600,
+    });
+  }, [centroInicial, mapaListo]);
+
+    useEffect(() => {
+    if (fase !== 'ruta') limpiarRuta();
+  }, [fase, limpiarRuta]);
+
+  useEffect(() => {
+    const coords = rutaPreview?.geometry?.coordinates;
+    if (!coords?.length) return;
+    const lngs = coords.map((p) => p[0]);
+    const lats = coords.map((p) => p[1]);
+    camaraRef.current?.fitBounds(
+      [Math.max(...lngs), Math.max(...lats)],
+      [Math.min(...lngs), Math.min(...lats)],
+      [220, 50, 300, 50],
+      600
+    );
+  }, [rutaPreview]);
 
   useEffect(() => {
     const id = setTimeout(() => setMapaListo(true), 2500);    return () => clearTimeout(id);
@@ -341,9 +629,25 @@ export default function PedirViajeScreen({
     );
   }
 
-     // ---------- Viaje terminado o cancelado ----------
-    if (resumen) {
-    return <ResumenViaje resumen={resumen} onCerrar={cerrarResumen} />;
+    // ---------- Viaje terminado o cancelado ----------
+  if (resumen) {
+    return (
+      <>
+        <ResumenViajeNuevo
+          resumen={resumen}
+          onCerrar={() => { cal.cerrar(); cerrarResumen(); }}
+        />
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
+      </>
+  );
   }
   if (!viaje && avisoCancelado) {
     return <AvisoCancelado onCerrar={cerrarAviso} />;
@@ -365,15 +669,128 @@ export default function PedirViajeScreen({
 
     return (
       <View style={styles.viajeContenedor}>
+      <Modal
+          visible={mostrarAvisoCerca && enCurso}
+          transparent
+          animationType="fade"
+          onRequestClose={cerrarAvisoCerca}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              justifyContent: 'center',
+              paddingHorizontal: 24,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 24,
+                padding: 24,
+                alignItems: 'center',
+                borderTopWidth: 6,
+                borderTopColor: '#F58220',
+              }}
+            >
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: '#FDE9D3',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                }}
+              >
+                <Ionicons name="notifications" size={44} color="#F58220" />
+              </View>
+
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: '800',
+                  color: VERDE,
+                  textAlign: 'center',
+                }}
+              >
+                ¡Ya casi llegas!
+              </Text>
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: '#444',
+                  textAlign: 'center',
+                  marginTop: 6,
+                  marginBottom: 18,
+                }}
+              >
+                Estás cerca de tu destino. Antes de bajar, revisa que no olvides nada.
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-around',
+                  alignSelf: 'stretch',
+                  backgroundColor: '#FAF7EE',
+                  borderRadius: 16,
+                  paddingVertical: 14,
+                  marginBottom: 22,
+                }}
+              >
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>📱</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Celular</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>🎒</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Mochila</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>👛</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Cartera</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 30 }}>🎧</Text>
+                  <Text style={{ fontSize: 12, color: '#444', marginTop: 4 }}>Otros</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  alignSelf: 'stretch',
+                  backgroundColor: VERDE,
+                  borderRadius: 14,
+                  paddingVertical: 16,
+                }}
+                onPress={cerrarAvisoCerca}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>
+                  Ya revisé, tengo todo
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
         {/* Mapa a pantalla completa en la parte de arriba */}
         {origen && destinoViaje?.lat != null ? (
           <MapaRuta
             style={styles.mapaViajeFull}
-            origen={origen}
+            origen={viaje.origen ?? origen}
             destino={destinoViaje}
             chofer={choferEnVivo}
             miUbicacion={miUbicacion}
             ruta={ruta}
+            rutaSala={viaje.ruta_sala}
+            paradas={viaje.paradas_sala}
           />
         ) : (
           <View style={styles.mapaViajeFull} />
@@ -390,8 +807,19 @@ export default function PedirViajeScreen({
         ) : null}
 
         {/* Tarjeta inferior */}
-        <View style={styles.sheet}>
-          <View style={styles.sheetHandle} />
+        <Animated.View
+          style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
+          onLayout={(e) => {
+            alturaSheet.current = e.nativeEvent.layout.height;
+            if (colapsado.current) sheetY.setValue(maxBajada());
+          }}
+        >
+          <View
+            {...panSheet.panHandlers}
+            style={{ paddingTop: 12, paddingBottom: 10, alignItems: 'center' }}
+          >
+            <View style={styles.sheetHandle} />
+          </View>
 
           <ScrollView
             style={styles.sheetScroll}
@@ -500,9 +928,29 @@ export default function PedirViajeScreen({
                       i < viaje.pasajeros && styles.asientoLleno,
                     ]}
                   >
-                    <Text style={styles.asientoTexto}>
-                      {i < viaje.pasajeros ? '👤' : ''}
-                    </Text>
+                                        {viaje.paradas_sala?.[i] ? (
+                      <Avatar
+                        uri={viaje.paradas_sala[i].foto_url}
+                        nombre={String(viaje.paradas_sala[i].orden)}
+                        tamano={36}
+                        style={{
+                          borderWidth: viaje.paradas_sala[i].es_mia ? 3 : 2,
+                          borderColor: colorDeOrden(viaje.paradas_sala[i].orden),
+                          opacity: viaje.paradas_sala[i].bajo ? 0.4 : 1,
+                        }}
+                      />
+                                       ) : buscandoEstado && i === 0 ? (
+                      <Avatar
+                        uri={perfil?.foto_url}
+                        nombre={perfil?.nombre ?? '👤'}
+                        tamano={36}
+                        style={{ borderWidth: 3, borderColor: colorDeOrden(1) }}
+                      />
+                    ) : (
+                      <Text style={styles.asientoTexto}>
+                        {i < viaje.pasajeros ? '👤' : ''}
+                      </Text>
+                    )}
                   </View>
                 ))}
               </View>
@@ -517,15 +965,58 @@ export default function PedirViajeScreen({
             {viaje.chofer ? (
               <View style={styles.tarjeta}>
                 <Text style={styles.tarjetaTitulo}>TU CHOFER ASIGNADO</Text>
-                <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
-                <Text style={styles.datoChoferDetalle}>
-                  🚗 {viaje.chofer.modelo} ·{' '}
-                  <Text style={styles.negrita}>{viaje.chofer.placa}</Text>
-                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Image
+                    source={require('../../../assets/carro_taxi_izq.png')}
+                    style={{ width: 88, height: 67 }}
+                    resizeMode="contain"
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.datoChoferNombre}>{viaje.chofer.nombre}</Text>
+                    <Text style={styles.datoChoferDetalle}>{viaje.chofer.modelo}</Text>
+                    <View
+                      style={{
+                        alignSelf: 'flex-start',
+                        marginTop: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 3,
+                        borderRadius: 6,
+                        borderWidth: 1.5,
+                        borderColor: '#1F2937',
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <Text style={{ fontWeight: '800', letterSpacing: 1.5, color: '#1F2937' }}>
+                        {viaje.chofer.placa}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               </View>
             ) : null}
 
             {error ? <Text style={styles.textoError}>{error}</Text> : null}
+
+                        {enCurso ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  borderWidth: 1.5,
+                  borderColor: '#B91C1C',
+                  marginTop: 12,
+                }}
+                onPress={() => Linking.openURL('tel:105').catch(() => {})}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call-outline" size={20} color="#B91C1C" />
+                <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Emergencia: llamar al 105</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Cancelar */}
             {puedeCancelar && !confirmandoCancelar ? (
@@ -567,7 +1058,7 @@ export default function PedirViajeScreen({
               </View>
             ) : null}
           </ScrollView>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -590,9 +1081,20 @@ export default function PedirViajeScreen({
     );
   }
 
+  const origenMapa = origenElegido ?? origen;
+
+  const etiquetaChip = origenElegido
+    ? (origenElegido.lugar ?? 'Punto en el mapa')
+    : 'UTP (respaldo)';
+
   const manejarToque = (evento) => {
     const [lng, lat] = evento.geometry.coordinates;
-    moverDestino(lat, lng);
+    if (fase === 'origen') {
+      moverOrigen(lat, lng);
+    } else {
+      moverDestino(lat, lng);
+      if (fase === 'ruta') setFase('destino'); // si cambia el destino, vuelve a confirmar
+    }
     Keyboard.dismiss();
   };
 
@@ -605,6 +1107,116 @@ export default function PedirViajeScreen({
       zoomLevel: 15,
       animationDuration: 600,
     });
+  };
+
+  const elegirOrigen = async (s) => {
+    setFase('origen');
+    Keyboard.dismiss();
+    const punto = await elegirSugerenciaOrigen(s);
+    if (!punto) return;
+    camaraRef.current?.setCamera({
+      centerCoordinate: [punto.lng, punto.lat],
+      zoomLevel: 15,
+      animationDuration: 600,
+    });
+  };
+
+    const irAMiUbicacion = async () => {
+    setFase('origen');
+    const punto = await usarMiUbicacion();
+    if (!punto) return;
+    camaraRef.current?.setCamera({
+      centerCoordinate: [punto.lng, punto.lat],
+      zoomLevel: 15,
+      animationDuration: 600,
+    });
+  };
+
+  const cerrarUbic = () => {
+    setUbicModalAbierto(false);
+    setMensajeUbic(null);
+  };
+
+  const elegirGuardada = (u) => {
+    setFase('origen');
+    cerrarUbic();
+    const punto = usarUbicacionGuardada(u);
+    camaraRef.current?.setCamera({
+      centerCoordinate: [punto.lng, punto.lat],
+      zoomLevel: 15,
+      animationDuration: 600,
+    });
+  };
+
+    const abrirMapaUbic = () => {
+    setUbicModalAbierto(false);
+    setMensajeUbic(null);
+    setPuntoNuevo(null);
+    setNombreNuevo('');
+    nombreManual.current = false;
+    buscadorUbic.limpiar();
+    setMapaUbicAbierto(true);
+  };
+
+  // Marca el punto y, si no escribiste tú el nombre, lo rellena con el de Mapbox
+  const elegirPuntoUbic = async (lat, lng, nombreConocido) => {
+    setPuntoNuevo({ lat, lng });
+    setMensajeUbic(null);
+    if (nombreManual.current) return;
+    const id = ++reqNombreUbic.current;
+    if (nombreConocido) {
+      setNombreNuevo(nombreConocido.slice(0, 40));
+      return;
+    }
+    try {
+      const n = await nombreDeLugar(lat, lng);
+      if (id === reqNombreUbic.current && n && !nombreManual.current) {
+        setNombreNuevo(n.slice(0, 40));
+      }
+    } catch {
+      // sin nombre: lo escribe el usuario
+    }
+  };
+
+  const elegirBusquedaUbic = async (s) => {
+    Keyboard.dismiss();
+    const p = await buscadorUbic.elegir(s);
+    if (!p) return;
+    camaraUbicRef.current?.setCamera({
+      centerCoordinate: [p.lng, p.lat],
+      zoomLevel: 16,
+      animationDuration: 600,
+    });
+    elegirPuntoUbic(p.lat, p.lng, p.nombre);
+  };
+
+  const cerrarMapaUbic = () => {
+    setMapaUbicAbierto(false);
+    setUbicModalAbierto(true);
+  };
+
+  const guardarDesdeMapa = async () => {
+    setGuardandoUbic(true);
+    const r = await guardarUbicacionEn(nombreNuevo, puntoNuevo?.lat, puntoNuevo?.lng);
+    setGuardandoUbic(false);
+    if (r.ok) {
+      setNombreNuevo('');
+      setMapaUbicAbierto(false);
+      setMensajeUbic('Ubicación guardada ✅');
+      setUbicModalAbierto(true);
+    } else {
+      setMensajeUbic(r.mensaje);
+    }
+  };
+
+  const alternarFavorita = async (u) => {
+    const r = await alternarPredeterminada(u);
+    setMensajeUbic(r.ok ? null : r.mensaje);
+  };
+
+  const quitarGuardada = async (u) => {
+    const r = await borrarUbicacion(u.id);
+    setMensajeUbic(r.ok ? null : r.mensaje);
   };
 
   const cambiarReferencia = (texto) => {
@@ -634,9 +1246,31 @@ export default function PedirViajeScreen({
             animationDuration={0}          
           />
 
-          <Mapbox.PointAnnotation id="origen" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
-            <Marcador icono="🚏" estiloPunto={styles.marcadorOrigen} />
+          <Mapbox.PointAnnotation
+            key={`origen-${origenMapa.lat}-${origenMapa.lng}`}
+            id={`origen-${origenMapa.lat}-${origenMapa.lng}`}
+            coordinate={[origenMapa.lng, origenMapa.lat]}
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <PinInicio />
           </Mapbox.PointAnnotation>
+
+                    {rutaPreview?.geometry ? (
+            <Mapbox.ShapeSource
+              id="rutaPreviewSel"
+              shape={{ type: 'Feature', properties: {}, geometry: rutaPreview.geometry }}
+            >
+              <Mapbox.LineLayer
+                id="rutaPreviewLinea"
+                style={{
+                  lineColor: VERDE,
+                  lineWidth: 5,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+            </Mapbox.ShapeSource>
+          ) : null}
 
           {destino ? (
             <Mapbox.PointAnnotation
@@ -644,7 +1278,7 @@ export default function PedirViajeScreen({
               coordinate={[destino.lng, destino.lat]}
               anchor={{ x: 0.5, y: 1 }}
             >
-              <Marcador icono="🏁" estiloPunto={styles.marcadorDestino} />
+              <PinFin />
             </Mapbox.PointAnnotation>
           ) : null}
         </Mapbox.MapView>
@@ -662,11 +1296,17 @@ export default function PedirViajeScreen({
                 <Ionicons name="menu" size={28} color={VERDE} />
               </TouchableOpacity>
 
-              <Image
-                source={require('../../../assets/logo-texto.png')}
-                style={styles.logoHeader}
-                resizeMode="contain"
-              />
+              <TouchableOpacity
+                style={estilosUbic.chip}
+                onPress={() => setUbicModalAbierto(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="location" size={16} color={VERDE} />
+                <Text style={estilosUbic.chipTexto} numberOfLines={1}>
+                  {etiquetaChip}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={VERDE} />
+              </TouchableOpacity>
 
               <TouchableOpacity onPress={onCampana} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="notifications-outline" size={26} color={VERDE} />
@@ -676,10 +1316,45 @@ export default function PedirViajeScreen({
             <View style={styles.rutaCard}>
               <View style={styles.rutaFila}>
                 <View style={styles.puntoOrigen} />
-                <Text style={styles.rutaTexto} numberOfLines={1}>
-                  Punto de recogida
-                </Text>
+                <TextInput
+                  style={styles.rutaInput}
+                  placeholder="Punto de partida"
+                  placeholderTextColor="#888"
+                  value={textoOrigen}
+                  onFocus={() => setFase('origen')}
+                  onChangeText={(t) => {
+                    setFase('origen');
+                    setConsultaOrigen(t);
+                  }}
+                  onBlur={() => {
+                    if (consultaOrigen === '') setConsultaOrigen(null);
+                  }}
+                />
+                {buscandoOrigen ? <ActivityIndicator color={VERDE} /> : null}
+                {textoOrigen.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setFase('origen');
+                      vaciarOrigen();
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#888" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
+
+              {sugerenciasOrigen.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.sugerenciaItem}
+                  onPress={() => elegirOrigen(s)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.sugerenciaNombre}>{s.nombre}</Text>
+                  <Text style={styles.sugerenciaDetalle}>{s.detalle}</Text>
+                </TouchableOpacity>
+              ))}
 
               <View style={styles.rutaSeparador} />
 
@@ -687,12 +1362,27 @@ export default function PedirViajeScreen({
                 <View style={styles.puntoDestino} />
                 <TextInput
                   style={styles.rutaInput}
+                  ref={destinoInputRef}
                   placeholder="¿A dónde vamos?"
                   placeholderTextColor="#888"
                   value={consulta}
-                  onChangeText={setConsulta}
+                  onChangeText={(t) => {
+                    setConsulta(t);
+                    if (fase === 'ruta') setFase('destino');
+                  }}
                 />
                 {buscando ? <ActivityIndicator color={VERDE} /> : null}
+                {consulta.length > 0 || destino ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      limpiarDestino();
+                      setFase('destino');
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#888" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               {sugerencias && sugerencias.map((s) => (
@@ -709,7 +1399,7 @@ export default function PedirViajeScreen({
             </View>
           </View>
 
-          {/* Parte de abajo: destino elegido + botón */}
+          {/* Parte de abajo: confirmar partida → confirmar destino → pedir taxi */}
           <View
             style={[
               styles.panelInferior,
@@ -719,9 +1409,9 @@ export default function PedirViajeScreen({
               },
             ]}
           >
-            {destino || error ? (
+                        {false ? (
               <View style={styles.destinoCard}>
-                {destino ? (
+                {fase === 'ruta' && destino ? (
                   <>
                     <Text style={styles.panelTitulo}>📍 Destino elegido</Text>
                     <Text style={styles.dato} numberOfLines={2}>
@@ -729,43 +1419,450 @@ export default function PedirViajeScreen({
                         ? 'Buscando dirección…'
                         : (destino.lugar ?? 'Punto elegido en el mapa')}
                     </Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Detalle extra (opcional): ej. frente al parque"
-                      placeholderTextColor="#888"
-                      onChangeText={cambiarReferencia}
-                    />
                   </>
                 ) : null}
                 {error ? <Text style={styles.textoError}>{error}</Text> : null}
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={[styles.boton, (!destino || cargando || buscandoDireccion) && styles.botonDeshabilitado]}
-              onPress={pedirViaje}
-              disabled={!destino || cargando || buscandoDireccion}
-              activeOpacity={0.8}
-            >
-              {cargando ? (
+            {fase === 'origen' ? (
+              <TouchableOpacity
+                style={styles.boton}
+                onPress={() => {
+                  setConsultaOrigen(null); // cierra las sugerencias de partida si quedaron abiertas
+                  setFase('destino');
+                  setTimeout(() => destinoInputRef.current?.focus(), 100);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.botonTexto}>Confirmar punto de partida</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {fase === 'destino' ? (
+              <TouchableOpacity
+                style={[styles.boton, (!destino || buscandoDireccion) && styles.botonDeshabilitado]}
+                onPress={() => {
+                  setFase('ruta');
+                  trazarRuta();
+                }}
+                disabled={!destino || buscandoDireccion}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.botonTexto}>Confirmar destino</Text>
+              </TouchableOpacity>
+            ) : null}
+
+                        {fase === 'ruta' && calculandoRuta ? (
+              <View style={[styles.boton, styles.botonDeshabilitado]}>
                 <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="car-outline" size={22} color="#fff" style={styles.botonIcono} />
-                  <Text style={styles.botonTexto}>Solicitar taxi</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                <Text style={styles.botonTexto}>  Trazando ruta…</Text>
+              </View>
+            ) : null}
+
+            {fase === 'ruta' && !calculandoRuta && errorRuta ? (
+              <TouchableOpacity style={styles.boton} onPress={trazarRuta} activeOpacity={0.8}>
+                <Text style={styles.botonTexto}>No se pudo trazar la ruta. Reintentar</Text>
+              </TouchableOpacity>
+            ) : null}
+
+                        {fase === 'ruta' && rutaPreview ? (
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.boton,
+                    { flex: 1 },
+                    (cargando || buscandoDireccion) && styles.botonDeshabilitado,
+                  ]}
+                  onPress={pedirViaje}
+                  disabled={cargando || buscandoDireccion}
+                  activeOpacity={0.8}
+                >
+                  {cargando ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="car-outline" size={22} color="#fff" style={styles.botonIcono} />
+                      <Text style={styles.botonTexto}>Solicitar taxi</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    width: 56,
+                    alignSelf: 'stretch',
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: VERDE,
+                    backgroundColor: '#fff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => {
+                    setDetalleTexto(destino?.direccion ?? '');
+                    setNotaAbierta(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={24} color={VERDE} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
         </>
       ) : null}
 
+            <Modal
+        visible={notaAbierta}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNotaAbierta(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setNotaAbierta(false)}
+          />
+                    <View
+            style={{
+              backgroundColor: '#fff',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: 16,
+              paddingBottom: 16 + (tecladoAlto > 0 ? tecladoAlto : insets.bottom),
+            }}
+          >
+            <Text style={styles.panelTitulo}>Notas para el chofer</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Detalle extra (opcional): ej. frente al parque"
+              placeholderTextColor="#888"
+              value={detalleTexto}
+              onChangeText={(t) => {
+                setDetalleTexto(t);
+                cambiarReferencia(t);
+              }}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Comentario para el chofer (opcional)"
+              placeholderTextColor="#888"
+              value={comentario}
+              onChangeText={setComentario}
+              maxLength={200}
+            />
+            <TouchableOpacity
+              style={styles.boton}
+              onPress={() => setNotaAbierta(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.botonTexto}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+            <Modal
+        visible={errorModal && !!error}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'center',
+            paddingHorizontal: 24,
+          }}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+            <Text style={styles.panelTitulo}>No se pudo completar</Text>
+            <Text style={[styles.dato, { marginBottom: 16 }]}>
+              {error?.message ?? String(error)}
+            </Text>
+            <TouchableOpacity
+              style={styles.boton}
+              onPress={() => setErrorModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.botonTexto}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {!mapaListo ? (
         <View style={styles.cargandoMapa}>
           <ActivityIndicator size="large" color={VERDE} />
           <Text style={styles.cargandoMapaTexto}>Te estamos ubicando…</Text>
         </View>
       ) : null}
+
+            <Modal
+        visible={avisoRespaldo}
+        transparent
+        animationType="fade"
+        onRequestClose={cerrarAvisoRespaldo}
+      >
+        <View style={estilosUbic.fondo}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={cerrarAvisoRespaldo}
+          />
+          <View
+            style={[
+              estilosUbic.panel,
+              { paddingBottom: 16 + insets.bottom },
+            ]}
+          >
+            <Text style={estilosUbic.titulo}>Tu ubicación está tardando</Text>
+            <Text style={estilosUbic.filaDetalle}>
+              Tu señal o tu GPS responden lento. Mientras tanto usamos un punto de respaldo, no tu ubicación actual.
+              Activa el GPS, reintenta o elige tu punto en el mapa.
+            </Text>
+            <TouchableOpacity
+              style={estilosUbic.fila}
+              onPress={reintentarUbicacion}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-circle" size={22} color={VERDE} />
+              <View style={estilosUbic.filaInfo}>
+                <Text style={estilosUbic.filaNombre}>Reintentar</Text>
+              </View>
+            </TouchableOpacity>
+            <Text style={estilosUbic.filaDetalle}>
+              O sigue con el punto de respaldo.
+            </Text>
+            <TouchableOpacity
+              style={estilosUbic.fila}
+              onPress={cerrarAvisoRespaldo}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="checkmark-circle" size={22} color={VERDE} />
+              <View style={estilosUbic.filaInfo}>
+                <Text style={estilosUbic.filaNombre}>Entendido</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={ubicModalAbierto}
+        transparent
+        animationType="slide"
+        onRequestClose={cerrarUbic}
+      >
+        <View style={estilosUbic.fondo}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={cerrarUbic}
+          />
+          <View
+            style={[
+              estilosUbic.panel,
+              { paddingBottom: 16 + (tecladoAlto > 0 ? tecladoAlto : insets.bottom) },
+            ]}
+          >
+            <Text style={estilosUbic.titulo}>Mis ubicaciones</Text>
+
+            <TouchableOpacity
+              style={estilosUbic.fila}
+              onPress={() => {
+                cerrarUbic();
+                irAMiUbicacion();
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="locate" size={22} color={VERDE} />
+              <View style={estilosUbic.filaInfo}>
+                <Text style={estilosUbic.filaNombre}>Mi ubicación actual</Text>
+                <Text style={estilosUbic.filaDetalle}>Usar mi GPS como punto de partida</Text>
+              </View>
+            </TouchableOpacity>
+
+            <ScrollView style={estilosUbic.lista} keyboardShouldPersistTaps="handled">
+              {ubicaciones.length === 0 ? (
+                <Text style={estilosUbic.vacio}>Aún no guardaste ubicaciones.</Text>
+              ) : null}
+              {ubicaciones.map((u) => (
+                <View key={u.id} style={estilosUbic.fila}>
+                  <TouchableOpacity
+                    style={estilosUbic.filaPrincipal}
+                    onPress={() => elegirGuardada(u)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="bookmark" size={20} color={VERDE} />
+                    <View style={estilosUbic.filaInfo}>
+                      <Text style={estilosUbic.filaNombre} numberOfLines={1}>
+                        {u.nombre}
+                      </Text>
+                      {u.direccion ? (
+                        <Text style={estilosUbic.filaDetalle} numberOfLines={1}>
+                          {u.direccion}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => alternarFavorita(u)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name={u.predeterminada ? 'star' : 'star-outline'}
+                      size={22}
+                      color={u.predeterminada ? '#F59E0B' : '#888'}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => quitarGuardada(u)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="trash-outline" size={22} color="#B91C1C" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={estilosUbic.botonAgregar}
+              onPress={abrirMapaUbic}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              <Text style={estilosUbic.botonAgregarTexto}>Agregar ubicación</Text>
+            </TouchableOpacity>
+            {mensajeUbic ? <Text style={estilosUbic.mensaje}>{mensajeUbic}</Text> : null}
+          </View>
+        </View>
+      </Modal>
+
+            <Modal
+        visible={mapaUbicAbierto}
+        animationType="slide"
+        onRequestClose={cerrarMapaUbic}
+      >
+        <View style={estilosUbic.mapaPantalla}>
+          <Mapbox.MapView
+            style={estilosUbic.mapaUbic}
+            onPress={(e) => {
+              const [lng, lat] = e.geometry.coordinates;
+              elegirPuntoUbic(lat, lng);
+              Keyboard.dismiss();
+            }}
+          >
+            <Mapbox.Camera
+              ref={camaraUbicRef}
+              defaultSettings={{
+                centerCoordinate: [origenMapa.lng, origenMapa.lat],
+                zoomLevel: 15,
+              }}
+            />
+            {puntoNuevo ? (
+              <Mapbox.PointAnnotation
+                key={`nuevo-${puntoNuevo.lat}-${puntoNuevo.lng}`}
+                id={`nuevo-${puntoNuevo.lat}-${puntoNuevo.lng}`}
+                coordinate={[puntoNuevo.lng, puntoNuevo.lat]}
+                anchor={{ x: 0.5, y: 1 }}
+              >
+                <PinInicio />
+              </Mapbox.PointAnnotation>
+            ) : null}
+          </Mapbox.MapView>
+
+                    <View style={[estilosUbic.barraUbic, { top: STATUS_BAR + 12 }]}>
+            <View style={estilosUbic.barraFila}>
+              <TouchableOpacity
+                style={estilosUbic.botonAtras}
+                onPress={cerrarMapaUbic}
+                activeOpacity={0.8}
+              >
+                <Text style={estilosUbic.botonAtrasTexto}>←</Text>
+              </TouchableOpacity>
+              <View style={estilosUbic.buscadorUbic}>
+                <TextInput
+                  style={estilosUbic.buscadorUbicInput}
+                  placeholder="Buscar dirección o lugar"
+                  placeholderTextColor="#888"
+                  value={buscadorUbic.texto}
+                  onChangeText={buscadorUbic.setTexto}
+                />
+                {buscadorUbic.buscando ? <ActivityIndicator color={VERDE} /> : null}
+                {buscadorUbic.texto.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={buscadorUbic.limpiar}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#888" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+            {buscadorUbic.sugerencias.length > 0 ? (
+              <View style={estilosUbic.sugerenciasUbic}>
+                {buscadorUbic.sugerencias.map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={estilosUbic.sugerenciaUbic}
+                    onPress={() => elegirBusquedaUbic(s)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={estilosUbic.sugerenciaUbicNombre}>{s.nombre}</Text>
+                    <Text style={estilosUbic.sugerenciaUbicDetalle}>{s.detalle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          <View
+            style={[
+              estilosUbic.panelMapa,
+              { paddingBottom: 16 + (tecladoAlto > 0 ? 0 : insets.bottom), bottom: tecladoAlto },
+            ]}
+          >
+            <Text style={estilosUbic.ayudaMapa}>
+              {puntoNuevo ? 'Punto elegido ✔' : 'Toca el mapa para elegir el punto de partida'}
+            </Text>
+            <TextInput
+              style={estilosUbic.inputMapa}
+              placeholder="Nombre (ej. Casa, Universidad)"
+              placeholderTextColor="#888"
+              value={nombreNuevo}
+              onChangeText={(t) => {
+                nombreManual.current = t.length > 0;
+                setNombreNuevo(t);
+              }}
+              maxLength={40}
+            />
+            {mensajeUbic ? <Text style={estilosUbic.mensaje}>{mensajeUbic}</Text> : null}
+            <TouchableOpacity
+              style={[
+                estilosUbic.botonAgregar,
+                (!puntoNuevo || !nombreNuevo.trim() || guardandoUbic) && estilosUbic.botonDeshabilitado,
+              ]}
+              onPress={guardarDesdeMapa}
+              disabled={!puntoNuevo || !nombreNuevo.trim() || guardandoUbic}
+              activeOpacity={0.8}
+            >
+              {guardandoUbic ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={estilosUbic.botonAgregarTexto}>Guardar ubicación</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Menú lateral (hamburguesa) */}
       <MenuLateral
@@ -775,6 +1872,10 @@ export default function PedirViajeScreen({
         onIrAInicio={() => {}}
         onIrAVehiculo={onIrAVehiculo}
         onIrADocumentos={onIrADocumentos}
+        onIrACalificaciones={onIrACalificaciones}
+        onIrAObjetosPerdidos={onIrAObjetosPerdidos}
+        onIrASeguridad={onIrASeguridad}
+        onIrASoporte={onIrASoporte}
         onIrASalasChofer={onIrASalasChofer}
         onIrAProgramados={onIrAProgramados}
         onIrAProgramadosChofer={onIrAProgramadosChofer}

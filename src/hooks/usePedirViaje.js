@@ -8,6 +8,8 @@ import { nombreDeLugar } from '../../lib/geocoding';
 
 // Cada cuántos ms se consulta el estado del viaje mientras hay uno activo
 const INTERVALO_MS = 2000;
+// Nombre que se muestra en el campo de partida mientras no se elija otro punto
+const NOMBRE_PUNTO_BASE = 'UTP Villa El Salvador';
 // Identificador de la sesión de búsqueda (agrupa suggest + retrieve)
 const nuevoToken = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -20,6 +22,14 @@ export function usePedirViaje() {
   const [origen, setOrigen] = useState(null);
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
+  const [comentario, setComentario] = useState('');
+  const [origenElegido, setOrigenElegido] = useState(null); // { lat, lng, lugar } o null = punto base
+  const reqOrigen = useRef(0);
+  // Buscador de partida: null = el campo muestra el nombre del punto actual; texto = el usuario está escribiendo
+  const [consultaOrigen, setConsultaOrigen] = useState(null);
+  const [sugerenciasOrigen, setSugerenciasOrigen] = useState([]);
+  const [buscandoOrigen, setBuscandoOrigen] = useState(false);
+  const sesionOrigen = useRef(nuevoToken());
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const reqDireccion = useRef(0);
   // Viaje activo (lo que devuelve mi_viaje_activo) o null si no hay
@@ -50,6 +60,19 @@ export function usePedirViaje() {
   const [buscando, setBuscando] = useState(false);
   const textoElegido = useRef(null); // evita buscar de nuevo justo después de elegir
   const sesionBusqueda = useRef(nuevoToken());
+  
+  // Ruta de vista previa (antes de pedir el taxi)
+  const [rutaPreview, setRutaPreview] = useState(null);
+  const [calculandoRuta, setCalculandoRuta] = useState(false);
+  const [errorRuta, setErrorRuta] = useState(false);
+  const reqRuta = useRef(0);
+  
+  const [ubicandoGps, setUbicandoGps] = useState(false);
+  // Ubicaciones guardadas del usuario
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [centroInicial, setCentroInicial] = useState(null);
+  const predeterminadaAplicada = useRef(false);
+  const [avisoRespaldo, setAvisoRespaldo] = useState(false);
 
 
     const refrescar = useCallback(async () => {
@@ -141,6 +164,10 @@ export function usePedirViaje() {
     (viaje.estado === 'abierta_con_chofer' || viaje.estado === 'en_curso') &&
     !viaje.mi_destino?.bajo;
 
+  // Solo comparto mi GPS mientras espero/recojo; en viaje en curso ya voy en el carro
+  const compartirMiPosicion =
+    seguirViaje && viaje.estado === 'abierta_con_chofer';
+
   // Posición del chofer, leída cada 4 s
   const { chofer: choferEnVivo } = useUbicacionesSala(
     seguirViaje ? viaje.sala_id : null,
@@ -149,7 +176,7 @@ export function usePedirViaje() {
 
   // Mi ping al servidor cada 6 s (solo con la app abierta)
   useEffect(() => {
-    if (!seguirViaje) return;
+    if (!compartirMiPosicion) return;
     let cancelado = false;
 
         const enviar = async () => {
@@ -191,12 +218,60 @@ export function usePedirViaje() {
       clearInterval(id);
       setMiUbicacion(null);
     };
-  }, [seguirViaje]);
+    }, [compartirMiPosicion]);
 
   // El destino del viaje: el que acaba de elegir, o el que devuelve mi_viaje_activo
   const destinoViaje = destino ?? viaje?.mi_destino ?? null;
   const dLat = destinoViaje?.lat;
   const dLng = destinoViaje?.lng;
+
+  // Aviso de cercanía al destino: una vez por sala, solo en viaje en curso
+  const RADIO_AVISO_BAJADA_M = 300;
+  const [avisoCercaSala, setAvisoCercaSala] = useState(null);
+    const [mostrarAvisoCerca, setMostrarAvisoCerca] = useState(false);
+
+  // Si el viaje no está en curso, el aviso se apaga (evita valores viejos)
+  useEffect(() => {
+    if (!hayViaje || viaje?.estado !== 'en_curso') setMostrarAvisoCerca(false);
+  }, [hayViaje, viaje?.estado]);
+
+  useEffect(() => {
+        console.log('AVISO_CERCA datos:', {
+      hayViaje,
+      estado: viaje?.estado,
+      chofer: choferEnVivo,
+      dLat,
+      dLng,
+      bajo: viaje?.mi_destino?.bajo,
+      avisoCercaSala,
+    });
+    if (!hayViaje || viaje?.estado !== 'en_curso' || !choferEnVivo) return;
+    if (!Number.isFinite(dLat) || !Number.isFinite(dLng)) return;
+    if (viaje?.mi_destino?.bajo || avisoCercaSala === viaje?.sala_id) return;
+
+    const rad = (g) => (g * Math.PI) / 180;
+    const a =
+      Math.sin(rad(dLat - choferEnVivo.lat) / 2) ** 2 +
+      Math.cos(rad(choferEnVivo.lat)) *
+        Math.cos(rad(dLat)) *
+        Math.sin(rad(dLng - choferEnVivo.lng) / 2) ** 2;
+    const metros = 2 * 6371000 * Math.asin(Math.sqrt(a));
+
+        console.log('AVISO_CERCA metros:', Math.round(metros));
+    if (metros <= RADIO_AVISO_BAJADA_M) {
+      setAvisoCercaSala(viaje.sala_id);
+      setMostrarAvisoCerca(true);
+    }
+  }, [
+    hayViaje,
+    viaje?.estado,
+    viaje?.sala_id,
+    viaje?.mi_destino?.bajo,
+    choferEnVivo,
+    dLat,
+    dLng,
+    avisoCercaSala,
+  ]);
 
   // Pide la ruta UNA vez por destino, en cuanto hay viaje activo
   useEffect(() => {
@@ -212,11 +287,26 @@ export function usePedirViaje() {
     rutaPedidaPara.current = clave; // se marca antes: si falla, no reintenta en bucle
 
     (async () => {
-      const { data, error: errorFn } = await supabase.functions.invoke('ruta-preview', {
-        body: { lat: dLat, lng: dLng },
-      });
+            let data = null;
+      let errorFn = null;
+      for (let intento = 0; intento < 3; intento++) {
+        if (intento > 0) {
+          await supabase.auth.refreshSession(); // renueva el token antes de reintentar
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+        const r = await supabase.functions.invoke('ruta-preview', {
+          body: { lat: dLat, lng: dLng },
+        });
+        data = r.data;
+        errorFn = r.error;
+        if (!errorFn && data?.geometry) break;
+      }
       if (errorFn || !data?.geometry) {
-        console.error('No se pudo cargar la ruta:', errorFn?.message ?? data?.error);
+                let detalle = '';
+        try {
+          detalle = await errorFn?.context?.text?.();
+        } catch {}
+        console.error('No se pudo cargar la ruta:', errorFn?.message ?? data?.error, 'STATUS:', errorFn?.context?.status, 'CUERPO:', detalle);
         setRuta(null);
         return;
       }
@@ -228,6 +318,7 @@ export function usePedirViaje() {
   useEffect(() => {
     const texto = consulta.trim();
     if (!origen || texto.length < 3 || texto === textoElegido.current) {
+      setBuscando(false);
       setSugerencias([]);
       return;
     }
@@ -267,14 +358,61 @@ export function usePedirViaje() {
   }, [consulta, origen]);
 
 
+// Sugerencias de partida, 400 ms después de dejar de escribir
+useEffect(() => {
+  const texto = (consultaOrigen ?? '').trim();
+  if (!origen || texto.length < 3) {
+    setSugerenciasOrigen([]);
+    return;
+  }
+
+  let vigente = true;
+  const id = setTimeout(async () => {
+    setBuscandoOrigen(true);
+    try {
+      const url =
+        'https://api.mapbox.com/search/searchbox/v1/suggest' +
+        `?q=${encodeURIComponent(texto)}` +
+        `&session_token=${sesionOrigen.current}` +
+        `&proximity=${origen.lng},${origen.lat}` +
+        '&country=pe&language=es&limit=5' +
+        `&access_token=${process.env.EXPO_PUBLIC_MAPBOX_TOKEN}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (!vigente) return;
+      setSugerenciasOrigen(
+        (d.suggestions ?? []).map((s) => ({
+          id: s.mapbox_id,
+          nombre: s.name ?? '',
+          detalle: s.full_address ?? s.place_formatted ?? '',
+        }))
+      );
+    } catch (e) {
+      if (vigente) setSugerenciasOrigen([]);
+    } finally {
+      if (vigente) setBuscandoOrigen(false);
+    }
+  }, 400);
+
+  return () => {
+    vigente = false;
+    clearTimeout(id);
+  };
+}, [consultaOrigen, origen]);
+
 const moverDestino = useCallback(async (lat, lng) => {
   const id = ++reqDireccion.current;
   setDestino((actual) => ({ ...actual, lat, lng, lugar: null }));
+  setConsulta('');
   setBuscandoDireccion(true);
   try {
     const nombre = await nombreDeLugar(lat, lng);
     if (id !== reqDireccion.current) return; // el puntero ya se movió
-    setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+        setDestino((actual) => (actual ? { ...actual, lugar: nombre ?? null } : actual));
+    if (nombre) {
+      textoElegido.current = nombre;
+      setConsulta(nombre);
+    }
   } catch {
     // sin nombre: el viaje se puede pedir igual
   } finally {
@@ -282,6 +420,55 @@ const moverDestino = useCallback(async (lat, lng) => {
   }
 }, []);
 
+
+const moverOrigen = useCallback(async (lat, lng) => {
+  const id = ++reqOrigen.current;
+  setOrigenElegido({ lat, lng, lugar: null });
+  setConsultaOrigen(null);
+  setSugerenciasOrigen([]);
+  try {
+    const nombre = await nombreDeLugar(lat, lng);
+    if (id !== reqOrigen.current) return;
+    setOrigenElegido((a) => (a ? { ...a, lugar: nombre ?? null } : a));
+  } catch {
+    // sin nombre: se puede pedir igual
+  }
+}, []);
+
+const restaurarOrigen = useCallback(() => {
+  setConsultaOrigen(null);
+  setSugerenciasOrigen([]);
+  reqOrigen.current++;
+  setOrigenElegido(null);
+}, []);
+
+// La X del campo de partida: vacía el campo para escribir de nuevo
+const vaciarOrigen = () => {
+  setConsultaOrigen('');
+  setSugerenciasOrigen([]);
+};
+
+const elegirSugerenciaOrigen = async (s) => {
+  try {
+    const url =
+      `https://api.mapbox.com/search/searchbox/v1/retrieve/${s.id}` +
+      `?session_token=${sesionOrigen.current}` +
+      `&access_token=${process.env.EXPO_PUBLIC_MAPBOX_TOKEN}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    const [lng, lat] = d.features[0].geometry.coordinates;
+
+    reqOrigen.current++;
+    setOrigenElegido({ lat, lng, lugar: s.nombre });
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
+    sesionOrigen.current = nuevoToken();
+    return { lat, lng };
+  } catch (e) {
+    setError('No se pudo ubicar ese lugar. Intenta con otro o toca el mapa.');
+    return null;
+  }
+};
 
 const elegirSugerencia = async (s) => {
   try {
@@ -307,6 +494,234 @@ const elegirSugerencia = async (s) => {
   }
 };
 
+
+  // Lee el GPS con varios intentos (red o GPS lentos) antes de rendirse
+  const leerGpsConReintentos = async () => {
+    const intentos = [
+      { accuracy: Location.Accuracy.Balanced, ms: 8000 },
+      { accuracy: Location.Accuracy.Balanced, ms: 12000 },
+      { accuracy: Location.Accuracy.Low, ms: 15000 },
+    ];
+    for (let i = 0; i < intentos.length; i++) {
+      try {
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: intentos[i].accuracy }),
+          new Promise((_, rechazar) =>
+            setTimeout(() => rechazar(new Error('timeout GPS')), intentos[i].ms)
+          ),
+        ]);
+        console.log('UBICACION intento', i + 1, 'ok');
+        return pos;
+      } catch (e) {
+        console.log('UBICACION intento', i + 1, 'fallo:', e?.message);
+      }
+    }
+    // Último recurso: la última posición conocida, si es de hace menos de 5 min
+    const ultima = await Location.getLastKnownPositionAsync({ maxAge: 300000 });
+    if (ultima) {
+      console.log('UBICACION usando ultima conocida');
+      return ultima;
+    }
+    throw new Error('GPS sin respuesta');
+  };
+
+  // Usa el GPS real del pasajero como punto de partida
+  const usarMiUbicacion = async (marca = null) => {
+    setError(null);
+    setUbicandoGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Activa el permiso de ubicación para usar tu posición actual.');
+        return null;
+      }
+      const pos = await Promise.race([
+        leerGpsConReintentos(),
+        new Promise((_, rechazar) =>
+          setTimeout(() => rechazar(new Error('timeout GPS')), 40000)
+        ),
+      ]);
+      const { latitude: lat, longitude: lng } = pos.coords;
+      // Si mientras tanto el usuario eligió otro punto, no se lo pisa
+      if (marca !== null && reqOrigen.current !== marca) {
+        return { lat, lng, omitido: true };
+      }
+      moverOrigen(lat, lng);
+      return { lat, lng };
+    } catch (e) {
+      setError('No se pudo obtener tu ubicación. Revisa que el GPS esté activado.');
+      return null;
+    } finally {
+      setUbicandoGps(false);
+    }
+  };
+
+  const cargarUbicaciones = useCallback(async () => {
+    const { data, error: errorSel } = await supabase
+      .from('ubicaciones_guardadas')
+      .select('id, nombre, direccion, lat, lng, predeterminada')
+      .order('creado_en', { ascending: true });
+    if (errorSel) {
+      console.error('Error al cargar ubicaciones:', errorSel.message);
+      return;
+    }
+    setUbicaciones(data ?? []);
+
+    // La primera vez, la predeterminada pasa a ser el punto de partida
+    if (!predeterminadaAplicada.current) {
+      predeterminadaAplicada.current = true;
+      const p = (data ?? []).find((u) => u.predeterminada);
+      if (p) {
+        reqOrigen.current++;
+        setOrigenElegido({ lat: p.lat, lng: p.lng, lugar: p.nombre });
+        setCentroInicial({ lat: p.lat, lng: p.lng });
+      }
+      // Prioridad A: siempre se intenta la ubicación actual; la predeterminada
+      // queda como punto provisional y como respaldo si el GPS falla
+      const marca = reqOrigen.current;
+      usarMiUbicacion(marca).then((c) => {
+        if (!c) setAvisoRespaldo(true);
+        else if (!c.omitido) setCentroInicial(c);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarUbicaciones();
+  }, [cargarUbicaciones]);
+
+  const usarUbicacionGuardada = (u) => {
+    reqOrigen.current++;
+    setOrigenElegido({ lat: u.lat, lng: u.lng, lugar: u.nombre });
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
+    return { lat: u.lat, lng: u.lng };
+  };
+
+  // Guarda el punto de partida que está en el mapa en este momento
+  const guardarUbicacion = async (nombre) => {
+    const limpio = (nombre ?? '').trim();
+    if (!limpio) return { ok: false, mensaje: 'Escribe un nombre para la ubicación.' };
+    if (ubicaciones.length >= 10) {
+      return { ok: false, mensaje: 'Máximo 10 ubicaciones guardadas.' };
+    }
+    const o = origenElegido ?? origen;
+    if (!o) return { ok: false, mensaje: 'Todavía no hay un punto de partida.' };
+
+    const { error: errorIns } = await supabase.from('ubicaciones_guardadas').insert({
+      nombre: limpio,
+      direccion: origenElegido ? (origenElegido.lugar ?? null) : NOMBRE_PUNTO_BASE,
+      lat: o.lat,
+      lng: o.lng,
+    });
+    if (errorIns) return { ok: false, mensaje: errorIns.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+    // Guarda un punto elegido en el mapa de "Agregar ubicación"
+  const guardarUbicacionEn = async (nombre, lat, lng) => {
+    const limpio = (nombre ?? '').trim();
+    if (!limpio) return { ok: false, mensaje: 'Escribe un nombre para la ubicación.' };
+    if (lat == null || lng == null) {
+      return { ok: false, mensaje: 'Toca el mapa para elegir el punto.' };
+    }
+    if (ubicaciones.length >= 10) {
+      return { ok: false, mensaje: 'Máximo 10 ubicaciones guardadas.' };
+    }
+    let direccion = null;
+    try {
+      direccion = (await nombreDeLugar(lat, lng)) ?? null;
+    } catch {
+      // sin dirección: se guarda igual
+    }
+    const { error: errorIns } = await supabase
+      .from('ubicaciones_guardadas')
+      .insert({ nombre: limpio, direccion, lat, lng });
+    if (errorIns) return { ok: false, mensaje: errorIns.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+  const borrarUbicacion = async (id) => {
+    const { error: errorDel } = await supabase
+      .from('ubicaciones_guardadas')
+      .delete()
+      .eq('id', id);
+    if (errorDel) return { ok: false, mensaje: errorDel.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+  const alternarPredeterminada = async (u) => {
+    const r = u.predeterminada
+      ? await supabase
+          .from('ubicaciones_guardadas')
+          .update({ predeterminada: false })
+          .eq('id', u.id)
+      : await supabase.rpc('marcar_ubicacion_predeterminada', { p_id: u.id });
+    if (r.error) return { ok: false, mensaje: r.error.message };
+    await cargarUbicaciones();
+    return { ok: true };
+  };
+
+
+
+    const limpiarRuta = useCallback(() => {
+    reqRuta.current++;
+    setRutaPreview(null);
+    setCalculandoRuta(false);
+    setErrorRuta(false);
+  }, []);
+
+  // Traza la ruta partida → destino SIN pedir chofer
+  const trazarRuta = async () => {
+    if (!destino) return;
+    const id = ++reqRuta.current;
+    const o = origenElegido ?? origen;
+    setRutaPreview(null);
+    setErrorRuta(false);
+    setCalculandoRuta(true);
+
+    let data = null;
+    let errorFn = null;
+    for (let intento = 0; intento < 3; intento++) {
+      if (intento > 0) {
+        await supabase.auth.refreshSession();
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      if (id !== reqRuta.current) return; // cambió el destino: se descarta
+      const r = await supabase.functions.invoke('ruta-preview', {
+        body: {
+          lat: destino.lat,
+          lng: destino.lng,
+          origen_lat: o?.lat,
+          origen_lng: o?.lng,
+        },
+      });
+      data = r.data;
+      errorFn = r.error;
+      if (!errorFn && data?.geometry) break;
+    }
+    if (id !== reqRuta.current) return;
+    if (errorFn || !data?.geometry) {
+          let detalle = '';
+      try {
+        detalle = await errorFn?.context?.text?.();
+      } catch {}
+      console.error(
+        'No se pudo trazar la ruta:',
+        errorFn?.message ?? data?.error,
+        'STATUS:', errorFn?.context?.status,
+        'CUERPO:', detalle
+      );
+      setErrorRuta(true);
+    } else {
+      setRutaPreview(data);
+    }
+    setCalculandoRuta(false);
+  };
+
   const pedirViaje = async () => {
     setError(null);
 
@@ -316,11 +731,22 @@ const elegirSugerencia = async (s) => {
     }
 
     setCargando(true);
+    try {
     const { error: errorRpc } = await supabase.rpc('pedir_viaje', {
       p_lat: destino.lat,
       p_lng: destino.lng,
       p_direccion:
         [destino.lugar, destino.direccion].filter(Boolean).join(' — ') || null,
+        p_comentario: comentario.trim() || null,
+        p_distancia_ruta_m:
+          rutaPreview?.distancia_m != null ? Math.round(rutaPreview.distancia_m) : null,
+              ...(origenElegido
+        ? {
+            p_origen_lat: origenElegido.lat,
+            p_origen_lng: origenElegido.lng,
+            p_origen_direccion: origenElegido.lugar ?? null,
+          }
+        : {}),
     });
 
     if (errorRpc) {
@@ -329,8 +755,18 @@ const elegirSugerencia = async (s) => {
       return;
     }
 
-    await refrescar();
-    setCargando(false);
+        console.log('PEDIR rpc ok');
+    try {
+      await refrescar();
+    } catch (e) {
+      console.log('PEDIR refrescar fallo:', e?.message);
+    }
+    } catch (e) {
+      console.log('PEDIR fallo:', e?.message);
+      setError('No se pudo enviar tu pedido. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   // Cancelar en dos pasos: primero se pide confirmar, luego se ejecuta
@@ -343,18 +779,44 @@ const elegirSugerencia = async (s) => {
 
   const confirmarCancelar = async () => {
     setCargando(true);
-    cancelacionPropia.current = true;
+       cancelacionPropia.current = true;
+    try {
     const { error: errorRpc } = await supabase.rpc('cancelar_pedido');
     if (errorRpc) {
       cancelacionPropia.current = false;
       setError(errorRpc.message);
     }
-    setConfirmandoCancelar(false);
+        setConfirmandoCancelar(false);
     await refrescar();
-    setCargando(false);
+    } catch (e) {
+      console.log('CANCELAR fallo:', e?.message);
+      cancelacionPropia.current = false;
+      setError('No se pudo cancelar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setCargando(false);
+    }
+  };
+  
+  const reiniciarPedido = () => {
+    limpiarRuta();
+    predeterminadaAplicada.current = false;
+    cargarUbicaciones();
+    setConsultaOrigen(null);
+    setSugerenciasOrigen([]);
+    setDestino(null);
+    setComentario('');
+    setOrigenElegido(null);
+    setConsulta('');
+    setSugerencias([]);
+    textoElegido.current = null;
   };
 
-    const reiniciarPedido = () => {
+
+  // Limpia solo el destino y su búsqueda (no toca la recogida ni el comentario)
+  const limpiarDestino = () => {
+    limpiarRuta();
+    reqDireccion.current++;
+    setBuscandoDireccion(false);
     setDestino(null);
     setConsulta('');
     setSugerencias([]);
@@ -374,9 +836,25 @@ const elegirSugerencia = async (s) => {
   // Una vez que el viaje arrancó ya no se puede cancelar
   const puedeCancelar = !!viaje && viaje.estado !== 'en_curso';
 
+  // Lo que muestra el campo de partida
+  const textoOrigen =
+    consultaOrigen ??
+    (origenElegido ? (origenElegido.lugar ?? 'Punto elegido en el mapa') : NOMBRE_PUNTO_BASE);
+
   return {
     origen,
     destino, setDestino,
+    comentario, setComentario,
+    origenElegido,
+    moverOrigen,
+    restaurarOrigen,
+    textoOrigen,
+    consultaOrigen,
+    setConsultaOrigen,
+    sugerenciasOrigen,
+    buscandoOrigen,
+    vaciarOrigen,
+    elegirSugerenciaOrigen,
     viaje,
     cargando,
     cargandoInicial,
@@ -397,11 +875,36 @@ const elegirSugerencia = async (s) => {
     elegirSugerencia,
     moverDestino,
     buscandoDireccion,
+    limpiarDestino,
     resumen,
     cerrarResumen,
     avisoCancelado,
     cerrarAviso,
     choferEnVivo,
+    mostrarAvisoCerca,
+    cerrarAvisoCerca: () => setMostrarAvisoCerca(false),
     miUbicacion,
+    rutaPreview,
+    calculandoRuta,
+    errorRuta,
+    trazarRuta,
+    limpiarRuta,
+    usarMiUbicacion,
+    ubicandoGps,
+    ubicaciones,
+    centroInicial,
+    usarUbicacionGuardada,
+    guardarUbicacion,
+    guardarUbicacionEn,
+    borrarUbicacion,
+    alternarPredeterminada,
+    avisoRespaldo,
+    cerrarAvisoRespaldo: () => setAvisoRespaldo(false),
+    reintentarUbicacion: async () => {
+      setAvisoRespaldo(false);
+      const c = await usarMiUbicacion();
+      if (c) setCentroInicial(c);
+      else setAvisoRespaldo(true);
+    },
   };
 }

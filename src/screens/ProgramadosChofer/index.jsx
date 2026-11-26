@@ -64,6 +64,9 @@ export default function ProgramadosChoferScreen({ onVolver, onIrAlViaje }) {
               {p.destino?.direccion || 'Destino sin nombre'}
             </Text>
             <Text style={styles.sub}>{'Pasajero: ' + (p.pasajero?.nombre || '')}</Text>
+            {p.comentario ? (
+              <Text style={styles.sub}>{'Comentario: ' + p.comentario}</Text>
+            ) : null}
             <Text style={styles.sub}>
               {'Asientos en esa franja: ' + p.ocupados + ' de ' + p.capacidad}
             </Text>
@@ -103,6 +106,15 @@ export default function ProgramadosChoferScreen({ onVolver, onIrAlViaje }) {
             <Text style={styles.sub}>
               {'A ' + km(p.distancia_origen_m) + ' km del punto de partida'}
             </Text>
+            {p.precio_estimado != null ? (
+              <Text style={styles.sub}>
+              {'Precio estimado: S/ ' + Number(p.precio_estimado).toFixed(2)}
+              </Text>
+            ) : null}
+
+            {p.comentario ? (
+              <Text style={styles.sub}>{'Comentario: ' + p.comentario}</Text>
+            ) : null}
             <View style={styles.acciones}>
               <TouchableOpacity
                 style={[styles.btnPrincipal, trabajando && styles.btnDeshabilitado]}

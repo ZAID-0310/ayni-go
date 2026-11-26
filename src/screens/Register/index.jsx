@@ -38,6 +38,7 @@ export default function RegisterScreen({ rol, onRegistroExitoso, onIrALogin, onV
     nombre, setNombre,
     email, setEmail,
     password, setPassword,
+    telefono, setTelefono,
     otp, setOtp,
     etapa,
     loading,
@@ -154,6 +155,18 @@ export default function RegisterScreen({ rol, onRegistroExitoso, onIrALogin, onV
                   autoCapitalize="none"
                   keyboardType="email-address"
                   {...propsFoco('email')}
+                />
+
+                <Text style={styles.label}>Celular</Text>
+                <TextInput
+                  style={[styles.input, foco === 'telefono' && styles.inputFoco]}
+                  placeholder="987654321"
+                  placeholderTextColor={colors.placeholder}
+                  value={telefono}
+                  onChangeText={setTelefono}
+                  keyboardType="phone-pad"
+                  maxLength={9}
+                  {...propsFoco('telefono')}
                 />
 
                 <Text style={styles.label}>Contraseña</Text>

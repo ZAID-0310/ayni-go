@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,19 @@ import {
   SafeAreaView,
   Animated,
   Linking,
+  Modal,
 } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSalasChofer } from '../../hooks/useSalasChofer';
+import { useCalificaciones } from '../../hooks/useCalificaciones';
+import ModalCalificar from '../../components/ModalCalificar';
+import ResumenViajeChofer from '../../components/ResumenViajeChofer';
 import useUbicacionesSala from '../../hooks/useUbicacionesSala';
+import PinInicio from '../../components/PinInicio';
+import PinFoto from '../../components/PinFoto';
+import Avatar from '../../components/Avatar';
 import styles, { colors } from './SalasChoferScreen.styles';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
@@ -23,6 +31,7 @@ const TEXTO_ESTADO = {
 };
 
 const km = (m) => (Number(m ?? 0) / 1000).toFixed(1);
+const NOMBRE_PUNTO_PARTIDA = 'UTP Lima Sur'; // cámbialo si el punto definitivo es otro
 const soles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`;
 
 const mmss = (s) =>
@@ -73,8 +82,100 @@ function PuntoEstado({ color, pulsar }) {
   );
 }
 
+// Un color por tramo (evita azul = pasajeros, dorado/gris = estado de la parada)
+const COLORES_TRAMO = ['#EA580C', '#7C3AED', '#0D9488', '#DB2777'];
+const colorDeOrden = (orden) => COLORES_TRAMO[(Math.max(1, orden) - 1) % COLORES_TRAMO.length];
+
+// Parte la ruta en tramos: origen → parada 1 → parada 2 → ...
+function partirRuta(coordenadas, paradas) {
+  if (!coordenadas?.length || !paradas?.length) return [];
+  const masCercano = (p) => {
+    let mejor = 0;
+    let min = Infinity;
+    coordenadas.forEach(([lng, lat], i) => {
+      const d = (lng - p.lng) ** 2 + (lat - p.lat) ** 2;
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    });
+    return mejor;
+  };
+  const ordenadas = [...paradas].sort((a, b) => a.orden - b.orden);
+  let desde = 0;
+  return ordenadas.map((p, k) => {
+    let hasta = masCercano(p);
+    if (k === ordenadas.length - 1) hasta = coordenadas.length - 1; // la última llega hasta el final
+    if (hasta <= desde) hasta = Math.min(desde + 1, coordenadas.length - 1);
+    const tramo = { orden: p.orden, color: colorDeOrden(p.orden), coordenadas: coordenadas.slice(desde, hasta + 1) };
+    desde = hasta;
+    return tramo;
+  });
+}
+
+// Distancia aproximada en metros entre dos puntos [lng, lat]
+const distM = (a, b) => {
+  const dx = (a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180) * 111320;
+  const dy = (a[1] - b[1]) * 110574;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+// Corta los tramos en la posición del chofer: lo recorrido queda aparte.
+// Solo busca hacia adelante (desdeIdx) y no corta si está a más de toleranciaM de la ruta.
+function recortarTramos(tramos, pos, desdeIdx, toleranciaM = 150) {
+  const todas = [];
+  tramos.forEach((t, k) => t.coordenadas.forEach((c, j) => todas.push({ c, k, j })));
+  if (todas.length === 0) return { restantes: tramos, recorrido: null, idx: 0 };
+
+  let idx = Math.min(desdeIdx, todas.length - 1);
+  if (pos) {
+    let mejor = -1;
+    let min = Infinity;
+    for (let i = idx; i < todas.length; i++) {
+      const d = distM(todas[i].c, [pos.lng, pos.lat]);
+      if (d < min) {
+        min = d;
+        mejor = i;
+      }
+    }
+    if (mejor >= 0 && min <= toleranciaM) idx = mejor;
+  }
+  if (idx === 0) return { restantes: tramos, recorrido: null, idx };
+
+  const corte = todas[idx];
+  const restantes = tramos
+    .map((t, k) => {
+      if (k < corte.k) return null;
+      return k === corte.k ? { ...t, coordenadas: t.coordenadas.slice(corte.j) } : t;
+    })
+    .filter((t) => t && t.coordenadas.length >= 2);
+  const recorrido = todas.slice(0, idx + 1).map((x) => x.c);
+  return { restantes, recorrido: recorrido.length >= 2 ? recorrido : null, idx };
+}
+// Pin de una parada con foto; al cargar la foto se redibuja (Android la deja vacía la primera vez)
+function PinParada({ parada, color, resaltado, atenuado }) {
+  const ref = useRef(null);
+  return (
+    <Mapbox.PointAnnotation
+      ref={ref}
+            id={`parada-chofer-${parada.orden}-${resaltado ? 'a' : parada.bajo ? 'b' : 'n'}`}
+      coordinate={[parada.lng, parada.lat]}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <PinFoto
+        uri={parada.foto_url}
+        orden={parada.orden}
+        color={color}
+        resaltado={resaltado}
+        atenuado={atenuado}
+        onCargada={() => ref.current?.refresh()}
+      />
+    </Mapbox.PointAnnotation>
+  );
+}
+
 // Mapa del chofer: ruta real (GeoJSON) y paradas numeradas
-function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null }) {
+function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion = null, recentrar = 0, estilo }) {
   const camara = useRef(null);
 
   const linea = useMemo(() => {
@@ -84,6 +185,29 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
       return null;
     }
   }, [ruta]);
+
+      // Clave estable: `paradas` llega como arreglo nuevo en cada refresco (2 s)
+  const paradasKey = paradas.map((p) => `${p.orden}:${p.lat}:${p.lng}`).join('|');
+
+  const tramos = useMemo(() => {
+    const t = partirRuta(linea?.coordinates, paradas).filter((x) => x.coordenadas.length >= 2);
+    if (t.length === 0 && linea?.coordinates?.length >= 2) {
+      return [{ orden: 0, color: colors.verde, coordenadas: linea.coordinates }];
+    }
+    return t;
+    }, [linea, paradasKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const avance = useRef(0);
+    const tramosPrevios = useRef(null);
+    const corte = useMemo(() => {
+      if (tramosPrevios.current !== tramos) {
+        tramosPrevios.current = tramos; // ruta nueva: el avance vuelve a empezar
+        avance.current = 0;
+      }
+      const r = recortarTramos(tramos, miUbicacion, avance.current);
+      avance.current = r.idx;
+      return r;
+    }, [tramos, miUbicacion]);
 
   const clave = `${linea?.coordinates?.length ?? 0}-${paradas.length}`;
 
@@ -95,29 +219,52 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
         ...paradas.map((p) => [p.lng, p.lat]),
       ];
     if (pts.length < 2) return;
-    const lngs = pts.map((p) => p[0]);
-    const lats = pts.map((p) => p[1]);
+    const todos = [...pts];
+    if (recentrar > 0) {
+      if (miUbicacion) todos.push([miUbicacion.lng, miUbicacion.lat]);
+      pasajeros.forEach((p) => todos.push([p.lng, p.lat]));
+    }
+    const lngs = todos.map((p) => p[0]);
+    const lats = todos.map((p) => p[1]);
     camara.current?.fitBounds(
       [Math.max(...lngs), Math.max(...lats)],
       [Math.min(...lngs), Math.min(...lats)],
       [40, 40, 40, 40],
       600
     );
-  }, [clave]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [clave, recentrar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!origen) return null;
 
   return (
-    <View style={styles.mapa}>
+    <View style={[styles.mapa, estilo]}>
       <Mapbox.MapView style={{ flex: 1 }}>
         <Mapbox.Camera
           ref={camara}
           defaultSettings={{ centerCoordinate: [origen.lng, origen.lat], zoomLevel: 12 }}
         />
-        {linea ? (
+        {tramos.length > 0 ? (
           <Mapbox.ShapeSource
             id="rutaChofer"
-            shape={{ type: 'Feature', geometry: linea, properties: {} }}
+            shape={{
+              type: 'FeatureCollection',
+                            features: [
+                ...(corte.recorrido
+                  ? [
+                      {
+                        type: 'Feature',
+                        geometry: { type: 'LineString', coordinates: corte.recorrido },
+                        properties: { color: '#C9C5B8' },
+                      },
+                    ]
+                  : []),
+                ...corte.restantes.map((t) => ({
+                  type: 'Feature',
+                  geometry: { type: 'LineString', coordinates: t.coordenadas },
+                  properties: { color: t.color },
+                })),
+              ],
+            }}
           >
             {/* Borde blanco para que la ruta resalte sobre las calles */}
             <Mapbox.LineLayer
@@ -127,18 +274,20 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
             <Mapbox.LineLayer
               id="rutaChoferLinea"
               aboveLayerID="rutaChoferBorde"
-              style={{ lineColor: colors.verde, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+                style={{ lineColor: ['get', 'color'], lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
             />
           </Mapbox.ShapeSource>
         ) : null}
 
-        <Mapbox.PointAnnotation id="origenChofer" coordinate={[origen.lng, origen.lat]}>
-          <View style={[styles.marca, styles.marcaOrigen]}>
-            <Text style={styles.marcaTexto}>🚏</Text>
-          </View>
+        <Mapbox.PointAnnotation
+          id="origenChofer"
+          coordinate={[origen.lng, origen.lat]}
+          anchor={{ x: 0.5, y: 1 }}
+        >
+          <PinInicio />
         </Mapbox.PointAnnotation>
 
-                <Mapbox.ShapeSource
+        <Mapbox.ShapeSource
           id="paradasChofer"
           shape={{
             type: 'FeatureCollection',
@@ -151,7 +300,7 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
                   ? colors.gris
                   : actual?.pasajero_id === p.pasajero_id
                     ? colors.dorado
-                    : colors.verdeProfundo,
+                    : colorDeOrden(p.orden),
                 textoColor:
                   !p.bajo && actual?.pasajero_id === p.pasajero_id
                     ? colors.verdeProfundo
@@ -160,27 +309,21 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
             })),
           }}
         >
-          <Mapbox.CircleLayer
-            id="paradasCirculos"
-            style={{
-              circleRadius: 14,
-              circleColor: ['get', 'color'],
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 2,
-            }}
-          />
-          <Mapbox.SymbolLayer
-            id="paradasNumeros"
-            style={{
-              textField: ['get', 'orden'],
-              textSize: 14,
-              textColor: ['get', 'textoColor'],
-              textAllowOverlap: true,
-              textIgnorePlacement: true,
-            }}
-          />
+        {paradas.map((p) => {
+          const esActual = !p.bajo && actual?.pasajero_id === p.pasajero_id;
+          return (
+            <PinParada
+              key={`${p.orden}-${esActual ? 'a' : p.bajo ? 'b' : 'n'}`}
+              parada={p}
+              color={p.bajo ? colors.gris : esActual ? colors.dorado : colorDeOrden(p.orden)}
+              resaltado={esActual}
+              atenuado={!!p.bajo}
+            />
+          );
+        })}
         </Mapbox.ShapeSource>
-              {miUbicacion ? (
+
+          {miUbicacion ? (
           <Mapbox.ShapeSource
             id="miPosicion"
             shape={{
@@ -237,8 +380,117 @@ function MapaChofer({ origen, ruta, paradas, actual, pasajeros = [], miUbicacion
   );
 }
 
+// Mapa pequeño del modal: ruta de la sala + destino del candidato
+function MapaCandidato({ origen, ruta, destino, paradas = [] }) {
+  const linea = useMemo(() => {
+    try {
+      return ruta ? JSON.parse(ruta) : null;
+    } catch {
+      return null;
+    }
+  }, [ruta]);
+
+  const pts = [
+    ...(linea?.coordinates ?? (origen ? [[origen.lng, origen.lat]] : [])),
+    [destino.lng, destino.lat],
+  ];
+  const lngs = pts.map((p) => p[0]);
+  const lats = pts.map((p) => p[1]);
+  const ne = [Math.max(...lngs) + 0.0005, Math.max(...lats) + 0.0005];
+  const sw = [Math.min(...lngs) - 0.0005, Math.min(...lats) - 0.0005];
+
+  return (
+    <View style={{ height: 240, borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+      <Mapbox.MapView style={{ flex: 1 }} scrollEnabled zoomEnabled pitchEnabled={false} rotateEnabled={false}>
+        <Mapbox.Camera
+          bounds={{ ne, sw, paddingTop: 30, paddingBottom: 30, paddingLeft: 30, paddingRight: 30 }}
+          animationDuration={0}
+        />
+        {linea?.coordinates?.length >= 2 ? (
+          <Mapbox.ShapeSource
+            id="rutaCandidato"
+            shape={{
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: linea.coordinates },
+              properties: {},
+            }}
+          >
+            <Mapbox.LineLayer
+              id="rutaCandidatoBorde"
+              style={{ lineColor: '#FFFFFF', lineWidth: 8, lineCap: 'round', lineJoin: 'round' }}
+            />
+            <Mapbox.LineLayer
+              id="rutaCandidatoLinea"
+              aboveLayerID="rutaCandidatoBorde"
+              style={{ lineColor: colors.verde, lineWidth: 4, lineCap: 'round', lineJoin: 'round' }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
+
+        {paradas.length > 0 ? (
+          <Mapbox.ShapeSource
+            id="paradasCandidato"
+            shape={{
+              type: 'FeatureCollection',
+              features: paradas.map((p) => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+                properties: {},
+              })),
+            }}
+          >
+            <Mapbox.CircleLayer
+              id="paradasCandidatoPunto"
+              style={{
+                circleRadius: 5,
+                circleColor: colors.verde,
+                circleStrokeColor: '#FFFFFF',
+                circleStrokeWidth: 2,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
+
+        {origen ? (
+          <Mapbox.PointAnnotation
+            id="origenCandidato"
+            coordinate={[origen.lng, origen.lat]}
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <PinInicio />
+          </Mapbox.PointAnnotation>
+        ) : null}
+
+        <Mapbox.ShapeSource
+          id="destinoCandidato"
+          shape={{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [destino.lng, destino.lat] },
+            properties: {},
+          }}
+        >
+          <Mapbox.CircleLayer
+            id="destinoCandidatoHalo"
+            style={{ circleRadius: 16, circleColor: '#DC2626', circleOpacity: 0.25 }}
+          />
+          <Mapbox.CircleLayer
+            id="destinoCandidatoPunto"
+            style={{
+              circleRadius: 8,
+              circleColor: '#DC2626',
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 3,
+            }}
+          />
+        </Mapbox.ShapeSource>
+      </Mapbox.MapView>
+    </View>
+  );
+}
+
 export default function SalasChoferScreen({ onVolver }) {
   const insets = useSafeAreaInsets();
+  const [recentrar, setRecentrar] = useState(0);
   const {
     solicitudes,
     viaje,
@@ -262,7 +514,13 @@ export default function SalasChoferScreen({ onVolver }) {
     cerrarResumen,
   } = useSalasChofer();
 
-    const hayViajeActivo =
+  const cal = useCalificaciones();
+
+  useEffect(() => {
+    if (resumen?.sala_id) cal.abrir(resumen.sala_id);
+  }, [resumen?.sala_id]);
+
+  const hayViajeActivo =
     viaje?.estado === 'abierta_con_chofer' || viaje?.estado === 'en_curso';
   const { pasajeros: pasajerosEnVivo } = useUbicacionesSala(
     
@@ -272,6 +530,7 @@ export default function SalasChoferScreen({ onVolver }) {
   
 
   const cerrarYVolver = () => {
+    cal.cerrar();
     cerrarResumen();
     onVolver?.();
   };
@@ -287,6 +546,7 @@ export default function SalasChoferScreen({ onVolver }) {
   }
 
   const mensajeError = errorAccion ?? errorLista;
+  
   const avisoUbicacion =
     permisoUbicacion === 'denegado'
       ? 'Activa el permiso de ubicación para recibir solicitudes (Ajustes → Apps → Ayni Go → Permisos).'
@@ -294,7 +554,29 @@ export default function SalasChoferScreen({ onVolver }) {
         ? 'No pudimos obtener tu ubicación. Activa la ubicación del dispositivo para recibir solicitudes.'
         : null;
 
-  // ---------- Resumen del viaje terminado ----------
+  // ---------- Resumen del viaje terminado (nuevo diseño) ----------
+  if (resumen) {
+    return (
+      <>
+        <ResumenViajeChofer
+          resumen={resumen}
+          textoPago={TEXTO_PAGO}
+          onCerrar={cerrarYVolver}
+        />
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
+      </>
+    );
+  }
+
+  // ---------- Resumen del viaje terminado (diseño anterior, sin uso) ----------
   if (resumen) {
     const lista = resumen.pasajeros ?? [];
     return (
@@ -352,6 +634,16 @@ export default function SalasChoferScreen({ onVolver }) {
             <Text style={styles.btnTexto}>Listo</Text>
           </TouchableOpacity>
         </ScrollView>
+
+        <ModalCalificar
+          visible={cal.visible}
+          pendientes={cal.pendientes}
+          error={cal.error}
+          onCalificar={(usuarioId, estrellas, comentario) =>
+            cal.calificar(resumen.sala_id, usuarioId, estrellas, comentario)
+          }
+          onCerrar={cal.cerrar}
+        />
       </SafeAreaView>
     );
   }
@@ -363,6 +655,7 @@ export default function SalasChoferScreen({ onVolver }) {
     const paradas = viaje.paradas ?? [];
     const enCurso = viaje.estado === 'en_curso';
     const actual = paradas.find((p) => !p.bajo) ?? null;
+    const candidato = candidatos[0] ?? null;
 
     const abrirWaze = (p) =>
       Linking.openURL(`https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`).catch(() => {});
@@ -373,20 +666,62 @@ export default function SalasChoferScreen({ onVolver }) {
 
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          style={styles.scroll}
-                    contentContainerStyle={[styles.contenido, { paddingBottom: 48 + insets.bottom }]}
+        {paradas.length > 0 ? (
+          <MapaChofer
+            origen={viaje.origen}
+            ruta={viaje.ruta}
+            paradas={paradas}
+            actual={enCurso ? actual : null}
+            pasajeros={pasajerosEnVivo ?? []}
+                        miUbicacion={miUbicacion}
+            recentrar={recentrar}
+            estilo={{ height: 340, marginTop: 0, marginBottom: 0, marginHorizontal: 0, borderRadius: 0 }}
+          />
+        ) : null}
+        {paradas.length > 0 ? (
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              right: 16,
+              top: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 6,
+              zIndex: 10,
+            }}
+            onPress={() => setRecentrar((n) => n + 1)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="locate" size={22} color={colors.verde} />
+          </TouchableOpacity>
+        ) : null}
+                <ScrollView
+          style={[
+            styles.scroll,
+            {
+              marginTop: -24,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              overflow: 'hidden',
+              backgroundColor: '#FAF7EE',
+              elevation: 8,
+            },
+          ]}
+          contentContainerStyle={[styles.contenido, { paddingTop: 20, paddingBottom: 48 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
-          <Cabecera titulo="Tu viaje" />
-          <View style={styles.estadoPildora}>
+          <View style={[styles.estadoPildora, { marginTop: 0 }]}>
             <PuntoEstado color={colors.verde} pulsar={viaje.estado === 'abierta_con_chofer'} />
             <Text style={styles.estadoPildoraTexto}>
               {TEXTO_ESTADO[viaje.estado] ?? viaje.estado}
             </Text>
           </View>
 
-          {/* Cupos, tiempo y total */}
+          {viaje.estado === 'abierta_con_chofer' ? (
           <View style={styles.card}>
             <View style={styles.cuposEncabezado}>
               <Text style={styles.seccionTitulo}>Pasajeros</Text>
@@ -397,11 +732,24 @@ export default function SalasChoferScreen({ onVolver }) {
             <View style={styles.asientosFila}>
               {Array.from({ length: viaje.capacidad }).map((_, i) => (
                 <View
-                  key={i}
-                  style={[styles.asiento, i < viaje.pasajeros && styles.asientoLleno]}
-                >
+                key={i}
+                style={[styles.asiento, i < viaje.pasajeros && styles.asientoLleno]}
+              >
+                {paradas[i] ? (
+                  <Avatar
+                    uri={paradas[i].foto_url}
+                    nombre={String(paradas[i].orden)}
+                    tamano={36}
+                    style={{
+                      borderWidth: 2,
+                      borderColor: paradas[i].bajo ? colors.gris : colorDeOrden(paradas[i].orden),
+                      opacity: paradas[i].bajo ? 0.4 : 1,
+                    }}
+                  />
+                ) : (
                   <Text style={styles.asientoTexto}>{i < viaje.pasajeros ? '👤' : ''}</Text>
-                </View>
+                )}
+              </View>
               ))}
             </View>
             <Text style={styles.cuposDetalle}>
@@ -428,34 +776,28 @@ export default function SalasChoferScreen({ onVolver }) {
             <Text style={styles.precioGrande}>{soles(viaje.precio_general)}</Text>
           </View>
 
-          {/* Mapa con ruta y paradas */}
-          {paradas.length > 0 ? (
-            <MapaChofer
-              origen={viaje.origen}
-              ruta={viaje.ruta}
-              paradas={paradas}
-              actual={enCurso ? actual : null}
-              pasajeros={pasajerosEnVivo ?? []}
-              miUbicacion={miUbicacion}
-            />
+
           ) : null}
 
-          {/* Iniciar viaje */}
+        {/* Iniciar viaje */}
           {viaje.estado === 'abierta_con_chofer' ? (
             <TouchableOpacity
               style={[
                 styles.btn,
                 styles.btnPrimario,
                 { flex: 0, marginBottom: 12 },
-                procesando && { opacity: 0.6 },
+                (procesando || !viaje.ruta) && { opacity: 0.6 },
               ]}
               onPress={iniciarViaje}
-              disabled={procesando}
+              disabled={procesando || !viaje.ruta}
               activeOpacity={0.8}
             >
               <Text style={styles.btnTexto}>
-                Iniciar viaje ({viaje.pasajeros}{' '}
-                {viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'})
+                {viaje.ruta
+                  ? `Iniciar viaje (${viaje.pasajeros} ${
+                      viaje.pasajeros === 1 ? 'pasajero' : 'pasajeros'
+                    })`
+                  : 'Trazando ruta…'}
               </Text>
             </TouchableOpacity>
           ) : null}
@@ -487,7 +829,7 @@ export default function SalasChoferScreen({ onVolver }) {
           ) : null}
 
           {/* Paradas */}
-          {paradas.length > 0 ? (
+          {enCurso && paradas.length > 0 ? (
             <>
               <Text style={styles.subtitulo}>Paradas</Text>
               <View style={styles.card}>
@@ -499,13 +841,17 @@ export default function SalasChoferScreen({ onVolver }) {
                       style={[styles.paradaCard, esActual && styles.paradaCardActual]}
                     >
                       <View style={styles.paradaTop}>
-                        <View
-                          style={[styles.marca, esActual && styles.marcaActual, p.bajo && styles.marcaBajo]}
-                        >
-                          <Text style={[styles.marcaTexto, esActual && styles.marcaTextoActual]}>
-                            {p.orden}
-                          </Text>
-                        </View>
+                        <Avatar
+                          uri={p.foto_url}
+                          nombre={String(p.orden)}
+                          tamano={40}
+                          style={{
+                            marginRight: 10,
+                            borderWidth: esActual ? 3 : 2,
+                            borderColor: p.bajo ? colors.gris : esActual ? colors.dorado : colorDeOrden(p.orden),
+                            opacity: p.bajo ? 0.5 : 1,
+                          }}
+                        />
                         <View style={styles.paradaTextos}>
                           <Text
                             style={[styles.paradaDir, p.bajo && styles.paradaDirBajo]}
@@ -514,6 +860,11 @@ export default function SalasChoferScreen({ onVolver }) {
                             {p.direccion || 'Sin referencia'}
                           </Text>
                           <Text style={styles.paradaSub}>{p.nombre}</Text>
+                          {p.comentario && !p.bajo ? (
+                            <View style={{ marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#FAF7EE' }}>
+                              <Text style={styles.paradaSub}>{'💬 ' + p.comentario}</Text>
+                            </View>
+                          ) : null}
                           {p.bajo ? (
                             <Text
                               style={[
@@ -575,56 +926,120 @@ export default function SalasChoferScreen({ onVolver }) {
           {mensajeError ? <Text style={styles.textoError}>{mensajeError}</Text> : null}
           {avisoUbicacion ? <Text style={styles.textoError}>{avisoUbicacion}</Text> : null}
 
-          {/* Candidatos */}
-          {viaje.estado === 'abierta_con_chofer' && ventanaAbierta && libres > 0 ? (
-            <>
-              <Text style={styles.subtitulo}>Pasajeros en tu ruta</Text>
-              {candidatos.length === 0 ? (
-                <View style={styles.buscandoFila}>
-                  <PuntoEstado color={colors.dorado} pulsar />
-                  <Text style={styles.buscandoTexto}>Buscando pasajeros cerca de tu ruta…</Text>
-                </View>
-              ) : null}
-              {candidatos.map((c) => (
-                <View key={c.solicitud_id} style={styles.card}>
-                  <View style={styles.solicitudEncabezado}>
-                    <View style={styles.pinCirculo}>
-                      <Text style={styles.pinEmoji}>📍</Text>
-                    </View>
-                    <View style={styles.solicitudInfo}>
-                      <Text style={styles.seccionTitulo}>Destino</Text>
-                      <Text style={styles.solicitudDestino} numberOfLines={2}>
-                        {c.direccion || 'Sin referencia'}
+          {/* Candidato: modal estilo Uber, uno por uno */}
+        <Modal
+          visible={
+            viaje.estado === 'abierta_con_chofer' && ventanaAbierta && libres > 0 && !!candidato
+          }
+          transparent
+          animationType="slide"
+          onRequestClose={() => {}}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+            {candidato ? (
+              <View
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  padding: 20,
+                  paddingBottom: 20 + insets.bottom,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                  <Avatar
+                    uri={candidato.foto_url}
+                    nombre="📍"
+                    tamano={56}
+                    style={{ marginRight: 12, borderWidth: 2, borderColor: colors.verde }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.seccionTitulo}>Nuevo pasajero en tu ruta</Text>
+                    {candidatos.length > 1 ? (
+                      <Text style={styles.paradaSub}>
+                        1 de {candidatos.length} solicitudes
                       </Text>
-                    </View>
+                    ) : null}
                   </View>
-                  <View style={styles.chip}>
+                </View>
+
+                <Text style={styles.seccionTitulo}>Punto de partida</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                  <View
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: colors.verde,
+                      marginRight: 8,
+                    }}
+                  />
+                  <Text style={[styles.solicitudDestino, { flex: 1 }]} numberOfLines={2}>
+                    {viaje.origen_direccion || NOMBRE_PUNTO_PARTIDA}
+                  </Text>
+                </View>
+                              
+
+                <Text style={styles.seccionTitulo}>Destino</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: colors.verde,
+                    marginRight: 8,
+                  }}
+                />
+                <Text style={[styles.solicitudDestino, { flex: 1 }]} numberOfLines={3}>
+                  {candidato.direccion || 'Sin referencia'}
+                </Text>
+              </View>
+
+                <View style={styles.chip}>
+                  <Text style={styles.chipTexto}>
+                    A {km(candidato.distancia_al_origen_m)} km del punto de partida
+                  </Text>
+                </View>
+
+                {candidato.precio_estimado != null ? (
+                  <View style={[styles.chip, { marginTop: 8 }]}>
                     <Text style={styles.chipTexto}>
-                      A {km(c.distancia_al_origen_m)} km del punto de partida
+                      Pagaría aprox. {soles(candidato.precio_estimado)}
                     </Text>
                   </View>
-                  <View style={styles.filaBotones}>
-                    <TouchableOpacity
-                      style={[styles.botonMitad, styles.botonNeutro]}
-                      onPress={() => descartarCandidato(c.solicitud_id)}
-                      disabled={procesando}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.botonNeutroTexto}>Descartar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.botonMitad, styles.boton]}
-                      onPress={() => aprobarCandidato(c.solicitud_id)}
-                      disabled={procesando}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.botonTexto}>Aprobar</Text>
-                    </TouchableOpacity>
+                ) : null}
+
+                {candidato.comentario ? (
+                  <View style={{ marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#FAF7EE' }}>
+                    <Text style={styles.seccionTitulo}>Comentario del pasajero</Text>
+                    <Text style={styles.solicitudDestino}>{candidato.comentario}</Text>
                   </View>
+                ) : null}
+
+                <View style={[styles.filaBotones, { marginTop: 16 }]}>
+                  <TouchableOpacity
+                    style={[styles.botonMitad, styles.botonNeutro]}
+                    onPress={() => descartarCandidato(candidato.solicitud_id)}
+                    disabled={procesando}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.botonNeutroTexto}>Descartar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.botonMitad, styles.boton, procesando && { opacity: 0.6 }]}
+                    onPress={() => aprobarCandidato(candidato.solicitud_id)}
+                    disabled={procesando}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.botonTexto}>Aprobar</Text>
+                  </TouchableOpacity>
                 </View>
-              ))}
-            </>
-          ) : null}
+              </View>
+            ) : null}
+          </View>
+        </Modal>
+          
         </ScrollView>
       </SafeAreaView>
     );
@@ -678,11 +1093,30 @@ export default function SalasChoferScreen({ onVolver }) {
                   </Text>
                 </View>
               </View>
+              {s.origen_direccion ? (
+                <View style={[styles.chip, { marginBottom: 8 }]}>
+                  <Text style={styles.chipTexto}>{'Recogida: ' + s.origen_direccion}</Text>
+                </View>
+              ) : null}
               <View style={styles.chip}>
                 <Text style={styles.chipTexto}>
                   A {km(s.distancia_max_m)} km del punto de partida
                 </Text>
               </View>
+              {s.precio_estimado != null ? (
+                <View style={[styles.chip, { marginTop: 8 }]}>
+                  <Text style={styles.chipTexto}>
+                    Precio estimado: {soles(s.precio_estimado)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {s.comentario ? (
+                <View style={{ marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#FAF7EE' }}>
+                  <Text style={styles.seccionTitulo}>Comentario del pasajero</Text>
+                  <Text style={styles.solicitudDestino}>{s.comentario}</Text>
+                </View>
+              ) : null}
               <View style={styles.filaBotones}>
                 <TouchableOpacity
                   style={[styles.botonMitad, styles.botonNeutro]}

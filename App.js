@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Appearance, View, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Appearance, View, StatusBar, ActivityIndicator, BackHandler, ToastAndroid } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 import BienvenidaScreen from './src/screens/Bienvenida';
@@ -8,6 +8,14 @@ import RegisterScreen from './src/screens/Register';
 import HomeScreen from './src/screens/Home';
 import VehicleScreen from './src/screens/Vehicle';
 import DocumentsScreen from './src/screens/Documents';
+import CalificacionesScreen from './src/screens/Calificaciones';
+import ObjetosPerdidosScreen from './src/screens/ObjetosPerdidos';
+import SeguridadScreen from './src/screens/Seguridad';
+import SaldoScreen from './src/screens/Saldo';
+import SoporteScreen from './src/screens/Soporte';
+import ChatSoporteScreen from './src/screens/ChatSoporte';
+import PreguntasFrecuentesScreen from './src/screens/PreguntasFrecuentes';
+import RespuestaFAQScreen from './src/screens/RespuestaFAQ';
 import PedirViajeScreen from './src/screens/PedirViaje';
 import SalasChoferScreen from './src/screens/SalasChofer';
 import ProgramadosScreen from './src/screens/Programados';
@@ -18,6 +26,7 @@ import CuentaScreen from './src/screens/Cuenta';
 import RecuperarClaveScreen from './src/screens/RecuperarClave';
 import BarraInferior from './src/components/BarraInferior';
 import { detenerUbicacionSegundoPlano } from './src/tasks/ubicacionSegundoPlano';
+import * as SplashScreen from 'expo-splash-screen';
 
 const TABS_PASAJERO = [
   { id: 'inicio', label: 'Inicio', icono: 'home' },
@@ -43,6 +52,9 @@ const TAB_DE_PANTALLA = {
 
 // Fuerza el tema claro: en modo oscuro algunos teléfonos pintaban los inputs con texto blanco
 Appearance.setColorScheme('light');
+
+// Mantiene el splash visible hasta saber si hay sesión guardada
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 
 export default function App() {
@@ -72,6 +84,105 @@ function AppContenido() {
   const [pantalla, setPantalla] = useState('bienvenida');
   const [rolElegido, setRolElegido] = useState(null); // 'pasajero' | 'chofer'
   const [perfil, setPerfil] = useState(null);
+  const [viajeEditar, setViajeEditar] = useState(null);
+  const [faqId, setFaqId] = useState(null); // viaje programado que se está editando
+
+  const [restaurando, setRestaurando] = useState(true);
+
+   const ultimoAtras = useRef(0);
+
+  // Oculta el splash al terminar de restaurar la sesión (tope de 6 s por si la red es lenta)
+  useEffect(() => {
+    if (!restaurando) {
+      SplashScreen.hideAsync().catch(() => {});
+      return;
+    }
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 6000);
+    return () => clearTimeout(t);
+  }, [restaurando]);
+
+  // Botón atrás del celular: retrocede una pantalla; en Inicio/Bienvenida pide pulsar dos veces para salir
+  useEffect(() => {
+    const ATRAS = {
+      vehiculo: 'cuenta',
+      documentos: 'home',
+      calificaciones: 'home',
+      objetosPerdidos: 'home',
+      seguridad: 'home',
+      saldo: 'home',
+      soporte: 'home',
+      faq: 'soporte',
+      chatSoporte: 'soporte',
+      faqRespuesta: 'faq',
+      salasChofer: 'home',
+      pedirViaje: 'home',
+      programados: 'home',
+      programadosChofer: 'home',
+      historial: 'home',
+      cuenta: 'home',
+      programadoNuevo: 'programados',
+      registro: 'bienvenida',
+      login: 'bienvenida',
+      recuperar: 'login',
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const destino = ATRAS[pantalla];
+      if (destino) {
+        setPantalla(destino);
+        return true;
+      }
+      const ahora = Date.now();
+      if (ahora - ultimoAtras.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+      ultimoAtras.current = ahora;
+      ToastAndroid.show('Pulsa de nuevo atrás para salir', ToastAndroid.SHORT);
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [pantalla]);
+
+  // Al abrir: si hay sesión guardada, entrar directo; si la sesión termina, volver a Bienvenida
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (activo && data) {
+            setPerfil(data);
+            setPantalla('home');
+          }
+        }
+      } catch (e) {
+        console.log('SESION restaurar falló', e.message);
+      } finally {
+        if (activo) setRestaurando(false);
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
+      if (evento === 'SIGNED_OUT') {
+        detenerUbicacionSegundoPlano();
+        setPerfil(null);
+        setPantalla((p) =>
+          ['bienvenida', 'login', 'registro', 'recuperar'].includes(p) ? p : 'bienvenida'
+        );
+      }
+    });
+    return () => {
+      activo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const manejarLoginExitoso = async (usuario) => {
     const { data, error } = await supabase
@@ -116,6 +227,14 @@ function AppContenido() {
     setPantalla('bienvenida');
   };
 
+    if (restaurando) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAF7EE' }}>
+        <ActivityIndicator color="#0F5132" />
+      </View>
+    );
+  }
+
   if (pantalla === 'vehiculo') {
     return (
       <VehicleScreen
@@ -134,12 +253,58 @@ function AppContenido() {
     );
   }
 
+  if (pantalla === 'calificaciones') {
+        return <CalificacionesScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
+  }
+
+    if (pantalla === 'soporte') {
+    return (
+      <SoporteScreen
+        onVolver={() => setPantalla('home')}
+        onIrAFaq={() => setPantalla('faq')}
+        onIrAChat={() => setPantalla('chatSoporte')}
+      />
+    );
+  }
+
+  if (pantalla === 'chatSoporte') {
+    return <ChatSoporteScreen onVolver={() => setPantalla('soporte')} />;
+  }
+
+  if (pantalla === 'faq') {
+    return (
+      <PreguntasFrecuentesScreen
+        onVolver={() => setPantalla('soporte')}
+        onElegir={(id) => {
+          setFaqId(id);
+          setPantalla('faqRespuesta');
+        }}
+      />
+    );
+  }
+
+  if (pantalla === 'faqRespuesta') {
+    return <RespuestaFAQScreen faqId={faqId} onVolver={() => setPantalla('faq')} />;
+  }
+
+    if (pantalla === 'saldo') {
+    return <SaldoScreen onVolver={() => setPantalla('home')} />;
+  }
+
+  if (pantalla === 'seguridad') {
+    return <SeguridadScreen perfil={perfil} onVolver={() => setPantalla('home')} />;
+  }
+
+  if (pantalla === 'objetosPerdidos') {
+    return <ObjetosPerdidosScreen onVolver={() => setPantalla('home')} />;
+  }
+
   if (pantalla === 'salasChofer') {
     return <SalasChoferScreen onVolver={() => setPantalla('home')} />;
   }
 
-    if (pantalla === 'pedirViaje') {
-    return <PedirViajeScreen onVolver={() => setPantalla('home')} />;
+  if (pantalla === 'pedirViaje') {
+    return <PedirViajeScreen perfil={perfil} onVolver={() => setPantalla('home')} onIrACalificaciones={() => setPantalla('calificaciones')} onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')} onIrASeguridad={() => setPantalla('seguridad')} onIrASoporte={() => setPantalla('soporte')} />;
   }
 
   if (pantalla === 'programados') {
@@ -147,7 +312,14 @@ function AppContenido() {
       <ProgramadosScreen
         onVolver={() => setPantalla('home')}
         onIrAlViaje={() => setPantalla('pedirViaje')}
-        onNuevo={() => setPantalla('programadoNuevo')}
+          onNuevo={() => {
+          setViajeEditar(null);
+          setPantalla('programadoNuevo');
+        }}
+        onEditar={(p) => {
+          setViajeEditar(p);
+          setPantalla('programadoNuevo');
+        }}
       />
     );
   }
@@ -168,6 +340,7 @@ function AppContenido() {
   if (pantalla === 'programadoNuevo') {
     return (
       <ProgramadoNuevoScreen
+        viaje={viajeEditar}
         onVolver={() => setPantalla('programados')}
         onGuardado={() => setPantalla('programados')}
       />
@@ -192,6 +365,11 @@ function AppContenido() {
         onCerrarSesion={manejarCerrarSesion}
         onIrAVehiculo={() => setPantalla('vehiculo')}
         onIrADocumentos={() => setPantalla('documentos')}
+        onIrACalificaciones={() => setPantalla('calificaciones')}
+        onIrAObjetosPerdidos={() => setPantalla('objetosPerdidos')}
+        onIrASeguridad={() => setPantalla('seguridad')}
+        onIrASaldo={() => setPantalla('saldo')}
+        onIrASoporte={() => setPantalla('soporte')}
         onIrAPedirViaje={() => setPantalla('pedirViaje')}
         onIrASalasChofer={() => setPantalla('salasChofer')}
         onIrAProgramados={() => setPantalla('programados')}

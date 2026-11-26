@@ -12,7 +12,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FAF7EE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "com.izaid.aynigo"
     },

@@ -36,6 +36,11 @@ export default function MenuLateral({
   onIrASalasChofer,
   onIrAProgramados,
   onIrAProgramadosChofer,
+  onIrACalificaciones,
+  onIrAObjetosPerdidos,
+  onIrASeguridad,
+  onIrASaldo,
+  onIrASoporte,
   onCerrarSesion,
 }) {
     const x = useRef(new Animated.Value(-ANCHO)).current;
@@ -71,15 +76,18 @@ export default function MenuLateral({
   const items = esChofer
     ? [
         { label: 'Mis documentos', icono: 'document-text-outline', accion: onIrADocumentos },
-        { label: 'Calificaciones', icono: 'star-outline' },
-        { label: 'Seguridad', icono: 'shield-checkmark-outline' },
-        { label: 'Ayuda y soporte', icono: 'headset-outline' },
+        { label: 'Calificaciones', icono: 'star-outline', accion: onIrACalificaciones },
+        { label: 'Mi saldo', icono: 'wallet-outline', accion: onIrASaldo },
+        { label: 'Seguridad', icono: 'shield-checkmark-outline', accion: onIrASeguridad },
+        { label: 'Ayuda y soporte', icono: 'headset-outline', accion: onIrASoporte },
         { label: 'Configuración', icono: 'settings-outline' },
       ]
     : [
         { label: 'Inicio', icono: 'home', accion: onIrAInicio, activo: true },
-        { label: 'Seguridad', icono: 'shield-checkmark-outline' },
-        { label: 'Ayuda y soporte', icono: 'headset-outline' },
+        { label: 'Calificaciones', icono: 'star-outline', accion: onIrACalificaciones },
+        { label: 'Seguridad', icono: 'shield-checkmark-outline', accion: onIrASeguridad },
+        { label: 'Reportar objeto perdido', icono: 'search-outline', accion: onIrAObjetosPerdidos },
+        { label: 'Ayuda y soporte', icono: 'headset-outline', accion: onIrASoporte },
         { label: 'Configuración', icono: 'settings-outline' },
       ];
 
