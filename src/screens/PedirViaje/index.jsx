@@ -310,9 +310,9 @@ function MapaRuta({ origen, destino, ruta, rutaSala, paradas, chofer: choferCrud
         </Mapbox.ShapeSource>
       ) : null}
 
-      <Mapbox.PointAnnotation id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }}>
+        <Mapbox.MarkerView id="origenViaje" coordinate={[origen.lng, origen.lat]} anchor={{ x: 0.5, y: 1 }} allowOverlap>
         <PinInicio />
-      </Mapbox.PointAnnotation>
+      </Mapbox.MarkerView>
         {paradasPines.map((p) => (
       <PinParada key={p.orden} parada={p} />
       ))}
@@ -471,6 +471,7 @@ export default function PedirViajeScreen({
     avisoRespaldo,
     cerrarAvisoRespaldo,
     reintentarUbicacion,
+    precioMaximo,
     moverOrigen,
     restaurarOrigen,
     rutaPreview,
@@ -1466,7 +1467,17 @@ export default function PedirViajeScreen({
               </TouchableOpacity>
             ) : null}
 
-                        {fase === 'ruta' && rutaPreview ? (
+              {fase === 'ruta' && rutaPreview && precioMaximo != null ? (
+              <View style={{ backgroundColor: '#E8F3EC', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                <Text style={{ fontSize: 13, color: '#555' }}>Podría costarte hasta</Text>
+                <Text style={{ fontSize: 26, fontWeight: '800', color: VERDE }}>{dinero(precioMaximo)}</Text>
+                <Text style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                  Precio aproximado. Puede bajar si se suman más pasajeros.
+                </Text>
+              </View>
+            ) : null}
+
+            {fase === 'ruta' && rutaPreview ? (
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity
                   style={[

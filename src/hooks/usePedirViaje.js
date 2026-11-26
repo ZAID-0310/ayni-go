@@ -20,6 +20,7 @@ const nuevoToken = () =>
 export function usePedirViaje() {
   // Punto de partida fijo (viene de config_salas): { lat, lng }
   const [origen, setOrigen] = useState(null);
+  const [tarifaKm, setTarifaKm] = useState(null);
   // Destino elegido en el mapa: { lat, lng, direccion }
   const [destino, setDestino] = useState(null);
   const [comentario, setComentario] = useState('');
@@ -131,7 +132,7 @@ export function usePedirViaje() {
   const cargarOrigen = useCallback(async () => {
     const { data, error } = await supabase
       .from('config_salas')
-      .select('origen_lat, origen_lng')
+      .select('origen_lat, origen_lng, tarifa_por_km')
       .maybeSingle();
 
     if (error) {
@@ -140,6 +141,7 @@ export function usePedirViaje() {
     }
     if (data) {
       setOrigen({ lat: data.origen_lat, lng: data.origen_lng });
+      setTarifaKm(Number(data.tarifa_por_km));
     }
   }, []);
 
@@ -836,6 +838,12 @@ const elegirSugerencia = async (s) => {
   // Una vez que el viaje arrancó ya no se puede cancelar
   const puedeCancelar = !!viaje && viaje.estado !== 'en_curso';
 
+    // Tope de lo que podría costar: tarifa × km de la ruta (compartir solo lo baja)
+  const precioMaximo =
+    Number.isFinite(tarifaKm) && rutaPreview?.distancia_m != null
+      ? Math.round((tarifaKm * rutaPreview.distancia_m) / 10) / 100
+      : null;
+
   // Lo que muestra el campo de partida
   const textoOrigen =
     consultaOrigen ??
@@ -888,6 +896,7 @@ const elegirSugerencia = async (s) => {
     calculandoRuta,
     errorRuta,
     trazarRuta,
+    precioMaximo,
     limpiarRuta,
     usarMiUbicacion,
     ubicandoGps,

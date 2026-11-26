@@ -16,6 +16,7 @@ import { styles } from './ProgramadoNuevoScreen.styles';
 import PinInicio from '../../components/PinInicio';
 import PinFin from '../../components/PinFin';
 import SelectorFechaHora from '../../components/SelectorFechaHora';
+import { useRutaProgramado } from '../../hooks/useRutaProgramado';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN);
 
@@ -65,7 +66,8 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado, viaje }) {
     direccionFinal,
     } = useElegirDestino(destinoInicial);
 
-  const { guardar, actualizar, trabajando } = useProgramados();
+    const { guardar, actualizar, trabajando } = useProgramados();
+  const { rutaPreview, calculandoRuta, precioMaximo } = useRutaProgramado(origen, destino);
 
   const insets = useSafeAreaInsets();
   const camaraRef = useRef(null);
@@ -110,7 +112,7 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado, viaje }) {
 
   const puedeGuardar =
         !!destino && etiqueta.trim().length > 0 && !!parseHora(horaTxt) &&
-    !buscandoDireccion && !trabajando;
+    !buscandoDireccion && !calculandoRuta && !trabajando;
 
   const manejarGuardar = async () => {
     setError(null);
@@ -131,7 +133,9 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado, viaje }) {
       comentario,
       fecha,
     };
-    const ok = viaje ? await actualizar({ id: viaje.id, ...datos }) : await guardar(datos);
+        const ok = viaje
+      ? await actualizar({ id: viaje.id, ...datos, distanciaRutaM: rutaPreview?.distancia_m })
+      : await guardar({ ...datos, distanciaRutaM: rutaPreview?.distancia_m });
     if (ok) onGuardado();
   };
 
@@ -215,6 +219,22 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado, viaje }) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
         >
+          {precioMaximo != null ? (
+            <View style={[tarjeta, { backgroundColor: '#E8F3EC' }]}>
+              <Text style={{ fontSize: 13, color: '#555' }}>Podría costarte hasta</Text>
+              <Text style={{ fontSize: 28, fontWeight: '800', color: '#0F5132' }}>
+                {`S/ ${precioMaximo.toFixed(2)}`}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                Precio aproximado. Puede bajar si se suman más pasajeros.
+              </Text>
+            </View>
+          ) : calculandoRuta ? (
+            <View style={tarjeta}>
+              <Text style={{ fontSize: 13, color: '#555' }}>Calculando precio…</Text>
+            </View>
+          ) : null}
+
           {/* Ruta */}
           <View style={tarjeta}>
             <Text style={tituloTarjeta}>Ruta</Text>
@@ -432,6 +452,17 @@ export default function ProgramadoNuevoScreen({ onVolver, onGuardado, viaje }) {
           >
             <PinFin />
           </Mapbox.PointAnnotation>
+        ) : null}
+        {rutaPreview?.geometry ? (
+          <Mapbox.ShapeSource
+            id="rutaProgPreview"
+            shape={{ type: 'Feature', properties: {}, geometry: rutaPreview.geometry }}
+          >
+            <Mapbox.LineLayer
+              id="rutaProgLinea"
+              style={{ lineColor: '#0F5132', lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+            />
+          </Mapbox.ShapeSource>
         ) : null}
       </Mapbox.MapView>
 

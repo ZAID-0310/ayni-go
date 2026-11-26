@@ -91,13 +91,14 @@ export function useProgramados() {
 
   const eliminar = (id) => ejecutar('eliminar_programado', { p_id: id });
 
-    const guardar = ({ lat, lng, direccion, etiqueta, horaTxt, comentario, fecha }) => {
+    const guardar = ({ lat, lng, direccion, etiqueta, horaTxt, comentario, fecha, distanciaRutaM }) => {
     const hora = parseHora(horaTxt);
     if (!hora) {
       Alert.alert('Hora inválida', 'Escribe la hora como HH:MM, por ejemplo 07:30');
       return Promise.resolve(false);
     }
     return ejecutar('guardar_programado', {
+      p_distancia_ruta_m: Number.isFinite(distanciaRutaM) ? Math.round(distanciaRutaM) : null,
       p_lat: lat,
       p_lng: lng,
       p_direccion: direccion,
@@ -108,13 +109,14 @@ export function useProgramados() {
     });
   };
 
-      const actualizar = ({ id, lat, lng, direccion, etiqueta, horaTxt, comentario, fecha }) => {
+    const actualizar = ({ id, lat, lng, direccion, etiqueta, horaTxt, comentario, fecha, distanciaRutaM }) => {
     const hora = parseHora(horaTxt);
     if (!hora) {
       Alert.alert('Hora inválida', 'Escribe la hora como HH:MM, por ejemplo 07:30');
       return Promise.resolve(false);
     }
     return ejecutar('actualizar_programado', {
+      p_distancia_ruta_m: Number.isFinite(distanciaRutaM) ? Math.round(distanciaRutaM) : null,
       p_id: id,
       p_lat: lat,
       p_lng: lng,
